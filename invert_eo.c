@@ -206,6 +206,20 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
                         rel_prec, max_iter, solver_params.eigcg_nev, solver_params.eigcg_vmax);
       Qtm_minus_psi(Odd_new, Odd_new);
     }
+/* ------------------------------------------------------------------------------------*/
+    else if(solver_flag == ARPACKCG) {
+      /* Here we invert the hermitean operator squared */
+
+      /* multiply with gammafive */
+      gamma5(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI], VOLUME/2);
+      if(g_proc_id == 0) {printf("# [invert_eo] Using ARPACK-CG!\n"); fflush(stdout);}
+
+      /* invert (gammafive M_eo_prec^+) x (gammafive Q_eo_prec^-) */
+      iter = arpack_cg( VOLUME/2, solver_params, Odd_new, g_spinor_field[DUM_DERI], &Qtm_pm_psi, &Qtm_pm_psi_32, precision, rel_prec, max_iter, &Qtm_plus_psi, &Qtm_minus_psi);
+      /* apply  (gammafive Q_eo_prec^-) */
+      Qtm_minus_psi(Odd_new, Odd_new);
+    }
+/* ------------------------------------------------------------------------------------*/
     else if(solver_flag == MIXEDCG) {
       /* Here we invert the hermitean operator squared */
       gamma5(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI], VOLUME/2);

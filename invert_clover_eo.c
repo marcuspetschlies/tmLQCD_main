@@ -111,6 +111,16 @@ int invert_clover_eo(spinor * const Even_new, spinor * const Odd_new,
                         rel_prec, max_iter, solver_params.eigcg_nev, solver_params.eigcg_vmax);
       Qm(Odd_new, Odd_new);
     }
+/* ------------------------------------------------------------------------------------*/
+    else if(solver_flag == ARPACKCG){
+
+      if(g_proc_id == 0) {printf("# [invert_clover_eo] Using ARPACK-CG!\n"); fflush(stdout);}
+
+      iter = arpack_cg( VOLUME/2, solver_params, Odd_new, g_spinor_field[DUM_DERI], &Qsw_pm_psi, &Qsw_pm_psi_32, precision, rel_prec, max_iter, &Qsw_plus_psi, &Qsw_minus_psi);
+
+      Qm(Odd_new, Odd_new);
+    }
+/* ------------------------------------------------------------------------------------*/
     else if(solver_flag == MIXEDCG){
       iter = mixed_cg_her(Odd_new, g_spinor_field[DUM_DERI], solver_params, 
 			  max_iter, precision, rel_prec, 

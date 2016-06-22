@@ -29,7 +29,7 @@
 
 #include <complex.h>
 #include "linalg/fortran.h"
-#ifdef MPI
+#ifdef TM_USE_MPI
 # include <mpi.h>
 #endif
 
@@ -55,7 +55,7 @@ extern int _AFT(zneupd) (int *comp_evecs, char *howmany, int *select, _Complex d
 extern int _AFT(mcinitdebug)(int*,int*,int*,int*,int*,int*,int*,int*);
 
 //PARPACK routines (parallel version)
-#ifdef MPI
+#ifdef TM_USE_MPI
 extern int _AFT(pznaupd) (int *comm, int *ido, char *bmat, int *n, char *which, int *nev, double *tol,
                          _Complex double *resid, int *ncv, _Complex double *v, int *ldv, 
                          int *iparam, int *ipntr, _Complex double *workd, _Complex double *workl, 

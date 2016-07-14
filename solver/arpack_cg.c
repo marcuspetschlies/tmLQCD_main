@@ -151,7 +151,7 @@ int arpack_cg(
    /*(IN) precision used for writing eigenvectors */
   int arpack_evecs_writeprec = solver_params.arpack_evecs_writeprec;
   /* how to project with approximate eigenvectors */
-  int projection_type = solver_params.arpackcg_projection_type;
+  int projection_type = solver_params.projection_type;
   /* file format for evecs used by arpack */
   char *arpack_evecs_fileformat = solver_params.arpack_evecs_fileformat; 
 

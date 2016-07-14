@@ -54,6 +54,7 @@
 #include <io/utils.h>
 #include "test/overlaptests.h"
 #include "solver/index_jd.h"
+#include "solver/deflator.h"
 #include "little_D.h"
 #include "operator/clovertm_operators.h"
 #include "operator/clovertm_operators_32.h"
@@ -141,8 +142,12 @@ int add_operator(const int type) {
   (optr->solver_params).arpackcg_eig_maxiter=0;
   (optr->solver_params).arpackcg_read_ev=0;
   (optr->solver_params).arpackcg_write_ev=0;
-  (optr->solver_params).arpackcg_projection_type=0;
+  (optr->solver_params).projection_type=0;
   (optr->solver_params).arpack_evecs_writeprec=32;
+  (optr->solver_params).rel_prec = _default_g_relative_precision_flag;
+  (optr->solver_params).eps_sq   = _default_solver_precision;
+  (optr->solver_params).maxiter  = _default_max_solver_iterations;
+
   strncpy((optr->solver_params).arpack_evecs_filename,"eigenvectors",300);
   strncpy((optr->solver_params).arpack_evecs_fileformat,"NA",4);
 
@@ -150,6 +155,38 @@ int add_operator(const int type) {
   (optr->solver_params).cheb_k=0;
   (optr->solver_params).op_evmin=0.0;
   (optr->solver_params).op_evmax=0.0;
+
+
+  /* init deflator parameters */
+  (optr->deflator_params).type            = -1;
+  (optr->deflator_params).eoprec          = _default_even_odd_flag;
+  (optr->deflator_params).f               = NULL;
+  (optr->deflator_params).f32             = NULL;
+  (optr->deflator_params).f_final         = NULL;
+  (optr->deflator_params).f_initial       = NULL;
+  (optr->deflator_params).evecs           = NULL;
+  (optr->deflator_params).evals           = NULL;
+  (optr->deflator_params).prec            = 64;
+  (optr->deflator_params).nconv           = -1;
+  (optr->deflator_params).nev             = 0;
+  (optr->deflator_params).ncv             = 0;
+  (optr->deflator_params).evals_kind      = 0;
+  (optr->deflator_params).comp_evecs      = 0;
+  (optr->deflator_params).eig_tol         = 0.;
+  (optr->deflator_params).eig_maxiter     = 0;
+  (optr->deflator_params).use_acc         = 0;
+  (optr->deflator_params).cheb_k          = 0;
+  (optr->deflator_params).op_evmin        = 0.0;
+  (optr->deflator_params).op_evmax        = 0.0;
+  (optr->deflator_params).write_ev        = 0;
+  (optr->deflator_params).read_ev         = 0;
+  (optr->deflator_params).evecs_writeprec = 64;
+  (optr->deflator_params).init            = NULL;
+  strcpy( (optr->deflator_params).type_name,       "NA");
+  strcpy((optr->deflator_params).logfile,          "arpack_log" ); 
+  strcpy((optr->deflator_params).evecs_filename,   "eigenvectors");
+  strcpy((optr->deflator_params).evecs_fileformat, "single");
+
 
   /* Overlap needs special treatment */
   if(optr->type == OVERLAP) {
@@ -175,7 +212,7 @@ int add_operator(const int type) {
 
   no_operators++;
   return(no_operators);
-}
+}  /* end of add_operator */
 
 int init_operators() {
   static int oinit = 0;
@@ -186,13 +223,34 @@ int init_operators() {
       optr = operator_list + i;
       /* This is a hack, it should be set on an operator basis. */
       optr->rel_prec = g_relative_precision_flag;
+
+      (optr->solver_params).rel_prec = optr->rel_prec;
+      (optr->solver_params).eps_sq   = optr->eps_sq;
+      (optr->solver_params).maxiter  = optr->maxiter;
+
+      if(optr->solver == EXACTDEFLATEDCG) {
+        (optr->deflator_params).eoprec = optr->even_odd_flag;
+        (optr->deflator_params).type   = optr->type;
+        (optr->deflator_params).init   = make_exactdeflator;
+      }
+
       if(optr->type == TMWILSON || optr->type == WILSON) {
         if(optr->c_sw > 0) {
           init_sw_fields();
         }
         optr->applyM = &M_full;
         optr->applyQ = &Q_full;
+
+        if(optr->solver == EXACTDEFLATEDCG) {
+          if(optr->type == TMWILSON ) {
+            strcpy( (optr->deflator_params).type_name, "TMWILSON" );
+          } else if( optr->type == WILSON) {
+            strcpy( (optr->deflator_params).type_name, "WILSON" );
+          }
+        }
+
         if(optr->even_odd_flag) {
+          /* TMWILSON or WILSON with even-odd preconditioning */
           optr->applyMee    = &Mee_psi;
           optr->applyMeeInv = &Mee_inv_psi;
           optr->applyQp = &Qtm_plus_psi;
@@ -200,6 +258,15 @@ int init_operators() {
           optr->applyQsq = &Qtm_pm_psi;
           optr->applyMp = &Mtm_plus_psi;
           optr->applyMm = &Mtm_minus_psi;
+
+          if(optr->solver == EXACTDEFLATEDCG) {
+            /* the the operators in the deflator */
+            (optr->deflator_params).f         = &Qtm_pm_psi;
+            (optr->deflator_params).f32       = &Qtm_pm_psi_32;
+            (optr->deflator_params).f_final   = &Qtm_plus_psi;
+            (optr->deflator_params).f_initial = &Qtm_minus_psi;
+          }
+
         }
         else {
           optr->applyQp = &Q_plus_psi;
@@ -207,6 +274,15 @@ int init_operators() {
           optr->applyQsq = &Q_pm_psi;
           optr->applyMp = &D_psi;
           optr->applyMm = &M_minus_psi;
+ 
+          if(optr->solver == EXACTDEFLATEDCG) {
+            /* the the operators in the deflator */
+            (optr->deflator_params).f         = &Q_pm_psi;
+            (optr->deflator_params).f32       = &Q_pm_psi_32;
+            (optr->deflator_params).f_final   = &Q_plus_psi;
+            (optr->deflator_params).f_initial = &Q_minus_psi;
+          }
+
         }
         if(optr->solver == CGMMS) {
           if (g_cart_id == 0 && optr->even_odd_flag == 1)
@@ -232,6 +308,11 @@ int init_operators() {
         }
         optr->applyM = &Msw_full;
         optr->applyQ = &Qsw_full;
+
+        if(optr->solver == EXACTDEFLATEDCG) {
+          strcpy( (optr->deflator_params).type_name, "CLOVER" );
+        }
+
         if(optr->even_odd_flag) {
           optr->applyMee    = &Mee_sw_psi;
           optr->applyMeeInv = &Mee_sw_inv_psi;
@@ -240,6 +321,16 @@ int init_operators() {
           optr->applyQsq = &Qsw_pm_psi;
           optr->applyMp = &Msw_plus_psi;
           optr->applyMm = &Msw_minus_psi;
+
+
+          if(optr->solver == EXACTDEFLATEDCG) {
+            /* the the operators in the deflator */
+            (optr->deflator_params).f         = &Qsw_pm_psi;
+            (optr->deflator_params).f32       = &Qsw_pm_psi_32;
+            (optr->deflator_params).f_final   = &Qsw_plus_psi;
+            (optr->deflator_params).f_initial = &Qsw_minus_psi;
+          }
+
         }
         else {
           optr->applyQp = &Qsw_full_plus_psi;
@@ -247,6 +338,15 @@ int init_operators() {
           optr->applyQsq = &Qsw_full_pm_psi;
           optr->applyMp = &D_psi;
           optr->applyMm = &Msw_full_minus_psi;
+
+          if(optr->solver == EXACTDEFLATEDCG) {
+            /* the the operators in the deflator */
+            (optr->deflator_params).f         = Qsw_full_pm_psi;
+            (optr->deflator_params).f32       = NULL;
+            (optr->deflator_params).f_final   = &Qsw_full_plus_psi;
+            (optr->deflator_params).f_initial = &Qsw_full_minus_psi;
+          }
+
         }
         if(optr->solver == CGMMS) {
           if (g_cart_id == 0 && optr->even_odd_flag == 1)
@@ -290,7 +390,7 @@ int init_operators() {
     } /* loop over operators */
   }
   return(0);
-}
+}  /* end of init_operators */
 
 void dummy_D(spinor * const s, spinor * const r) {
   if(g_proc_id == 0) {
@@ -373,7 +473,8 @@ void op_invert(const int op_id, const int index_start, const int write_prop) {
                                       optr->eps_sq, optr->maxiter,
                                       optr->solver, optr->rel_prec,
                                       0, optr->even_odd_flag,optr->no_extra_masses,
-                                      optr->extra_masses, optr->solver_params, optr->id,
+                                      optr->extra_masses, optr->solver_params, optr->deflator_params,
+                                      optr->id,
                                       optr->external_inverter, optr->sloppy_precision, optr->compression_type);
 
         /* check result */
@@ -607,11 +708,15 @@ void op_write_prop(const int op_id, const int index_start, const int append_) {
   if (PropInfo.format == 1) {
     sourceFormat = construct_paramsSourceFormat(SourceInfo.precision, optr->no_flavours, 4, 3);
     write_source_format(writer, sourceFormat);
-    status = write_spinor(writer, &operator_list[op_id].sr0, &operator_list[op_id].sr1, 
-                          1, SourceInfo.precision);
+    status = write_spinor(writer, &operator_list[op_id].sr0, &operator_list[op_id].sr1, 1, SourceInfo.precision);
+    if(status != 0) {
+      fprintf(stderr, "[op_write_prop] Error from write_spinor while writing source, status was %d\n", status);
+    }
     if(optr->no_flavours == 2) {
-      status = write_spinor(writer, &operator_list[op_id].sr2, &operator_list[op_id].sr3, 
-                            1, SourceInfo.precision);
+      status = write_spinor(writer, &operator_list[op_id].sr2, &operator_list[op_id].sr3, 1, SourceInfo.precision);
+      if(status != 0) {
+        fprintf(stderr, "[op_write_prop] Error from write_spinor while writing source for second flavor, status was %d\n", status);
+      }
     }
     free(sourceFormat);
   }
@@ -621,9 +726,15 @@ void op_write_prop(const int op_id, const int index_start, const int append_) {
 
   if(optr->no_flavours == 2) {
     status = write_spinor(writer, &operator_list[op_id].prop2, &operator_list[op_id].prop3, 1, optr->prop_precision);
+    if(status != 0) {
+      fprintf(stderr, "[op_write_prop] Error from write_spinor while writing propagator , status was %d\n", status);
+    }
   }
   status = write_spinor(writer, &operator_list[op_id].prop0, &operator_list[op_id].prop1, 1, optr->prop_precision);
-  // check status for errors!?
+  if(status != 0) {
+    fprintf(stderr, "[op_write_prop] Error from write_spinor while writing propagator , status was %d\n", status);
+  }
+
   destruct_writer(writer);
   return;
 }

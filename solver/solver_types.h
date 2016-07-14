@@ -24,7 +24,8 @@ typedef enum SOLVER_TYPE {
  MCR,
  CR,
  BICG,
- ARPACKCG
+ ARPACKCG,
+ EXACTDEFLATEDCG
 } SOLVER_TYPE;
 
 #endif

@@ -79,7 +79,7 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
               const double precision, const int max_iter,
               const int solver_flag, const int rel_prec,
               const int sub_evs_flag, const int even_odd_flag,
-              const int no_extra_masses, double * const extra_masses, solver_params_t solver_params, const int id,
+              const int no_extra_masses, double * const extra_masses, solver_params_t solver_params, deflator_params_t deflator_params, const int id,
               const ExternalInverter inverter, const SloppyPrecision sloppy, const CompressionType compression )  {
 
   int iter = 0;
@@ -216,6 +216,22 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
 
       /* invert (gammafive M_eo_prec^+) x (gammafive Q_eo_prec^-) */
       iter = arpack_cg( VOLUME/2, solver_params, Odd_new, g_spinor_field[DUM_DERI], &Qtm_pm_psi, &Qtm_pm_psi_32, precision, rel_prec, max_iter, &Qtm_plus_psi, &Qtm_minus_psi);
+      if(iter < 0) {
+        fprintf(stderr, "[invert_eo] Error from arpack_cg, status was %d\n", iter);
+      }
+      /* apply  (gammafive Q_eo_prec^-) */
+      Qtm_minus_psi(Odd_new, Odd_new);
+    }
+/* ------------------------------------------------------------------------------------*/
+    else if(solver_flag == EXACTDEFLATEDCG) {
+      /* Here we invert the hermitean operator squared */
+
+      /* multiply with gammafive */
+      gamma5(g_spinor_field[DUM_DERI], g_spinor_field[DUM_DERI], VOLUME/2);
+      if(g_proc_id == 0) {printf("# [invert_eo] Using DEFLATED-CG!\n"); fflush(stdout);}
+
+      /* invert (gammafive M_eo_prec^+) x (gammafive Q_eo_prec^-) */
+      iter = exactdeflated_cg( solver_params, deflator_params, Odd_new, g_spinor_field[DUM_DERI]);
       /* apply  (gammafive Q_eo_prec^-) */
       Qtm_minus_psi(Odd_new, Odd_new);
     }
@@ -348,9 +364,7 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
 #endif     
   
   
-  }
-
-  else {
+  } else {
     /* here comes the inversion not using even/odd preconditioning */
     if(g_proc_id == 0) {printf("# Not using even/odd preconditioning!\n"); fflush(stdout);}
     convert_eo_to_lexic(g_spinor_field[DUM_DERI], Even, Odd);
@@ -545,9 +559,10 @@ int invert_eo(spinor * const Even_new, spinor * const Odd_new,
 #endif
     }
     convert_lexic_to_eo(Even_new, Odd_new, g_spinor_field[DUM_DERI+1]);
-  }
+  }  /* of if even_odd_flag */
+
   return(iter);
-}
+}  /* end of invert_eo */
 
 /* FIXME temporary solution for the writing of CGMMS propagators until the input/output interface for
    invert_eo has been generalized

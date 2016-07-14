@@ -54,6 +54,7 @@
 #include "invert_eo.h"
 #include "start.h"
 #include "operator.h"
+#include "solver/solver_types.h"
 #include "measure_gauge_action.h"
 #include "linalg/convert_eo_to_lexic.h"
 #include "include/tmLQCD.h"
@@ -180,8 +181,11 @@ int tmLQCD_invert_init(int argc, char *argv[], const int _verbose) {
 #endif
   tmLQCD_invert_initialised = 1;  
   return(0);
-}
+}  /* end of tmLQCD_invert_init */
 
+/***************************************************************************************
+ *
+ ***************************************************************************************/
 int tmLQCD_read_gauge(const int nconfig) {
   char conf_filename[500];
   if(!tmLQCD_invert_initialised) {
@@ -214,9 +218,12 @@ int tmLQCD_read_gauge(const int nconfig) {
     printf("# The computed plaquette value is %.16e.\n", plaquette);
   }
   return(0);
-}
+}  /* end of tmLQCD_read_gauge */
 
 
+/***************************************************************************************
+ *
+ ***************************************************************************************/
 int tmLQCD_invert(double * const propagator, double * const source, 
 		  const int op_id, const int write_prop) {
   unsigned int index_start = 0;
@@ -250,9 +257,65 @@ int tmLQCD_invert(double * const propagator, double * const source,
   convert_eo_to_lexic((spinor*) propagator, operator_list[op_id].prop0, operator_list[op_id].prop1);
 
   return(0);
-}
+}  /* end of tmLQCD_invert */
+
+/***************************************************************************************
+ * invert even-odd preconditioned operator directly
+ *   propagator and source must be in even-odd ordering already
+ ***************************************************************************************/
+int tmLQCD_invert_eo(double * const propagator, double * const source, const int op_id) {
+  int iter;
+  spinor * const p_ptr = (spinor * const)propagator;
+  spinor * const s_ptr = (spinor * const)source;
 
 
+  if(!tmLQCD_invert_initialised) {
+    fprintf(stderr, "[tmLQCD_invert_eo] tmLQCD_inver_init must be called first. Aborting...\n");
+    fflush(stderr);
+    return(-1);
+  }
+
+  if(op_id < 0 || op_id >= no_operators) {
+    fprintf(stderr, "[tmLQCD_invert_eo] op_id=%d not in valid range. Aborting...\n", op_id);
+    fflush(stderr);
+    return(-1);
+  }
+
+  if (operator_list[op_id].solver != EXACTDEFLATEDCG ) {
+    fprintf(stderr, "[tmLQCD_invert_eo] Error, wrong solver type in operator\n");
+    fflush(stderr);
+    return(-2);
+  }
+
+  if(g_proc_id == 0) {
+    printf("# [tmLQCD_invert_eo] Using eo-prec., symmetrized, deflated cg!\n");
+    fflush(stdout);
+  }
+
+  /****************************************
+   * initialize parameters; this is otherwise
+   * done in operator.c or invert.c
+   ****************************************/
+  boundary(operator_list[op_id].kappa);
+  g_mu    = operator_list[op_id].mu;
+  g_c_sw  = operator_list[op_id].c_sw;
+  g_kappa = operator_list[op_id].kappa;
+
+  /* call invert */
+  iter = exactdeflated_cg( operator_list[op_id].solver_params, operator_list[op_id].deflator_params, p_ptr, s_ptr);
+
+  if(iter<0) {
+    fprintf(stderr, "[tmLQCD_invert_eo] Error from deflated_cg, status was %d\n", iter);
+    fflush(stderr);
+    return(1);
+  }
+
+  return(0);
+}  /* end of tmLQCD_invert_eo */
+
+/***************************************************************************************
+ *
+ ***************************************************************************************/
 int tmLQCD_finalise() {
 
 #ifdef TM_USE_OMP
@@ -282,9 +345,12 @@ int tmLQCD_finalise() {
   MPI_Barrier(MPI_COMM_WORLD);
 #endif
   return(0);
-}
+}  /* end of tmLQCD_finalise */
 
 
+/***************************************************************************************
+ *
+ ***************************************************************************************/
 int tmLQCD_get_lat_params(tmLQCD_lat_params * params) {
   if(!tmLQCD_invert_initialised) {
     fprintf(stderr, "tmLQCD_get_lat_params: tmLQCD_inver_init must be called first. Aborting...\n");
@@ -340,3 +406,65 @@ int tmLQCD_get_gauge_field_pointer(double ** gf) {
 
   return(0);
 }
+
+/***************************************************************************************
+ * copy several deflator parameters
+ ***************************************************************************************/
+int tmLQCD_get_deflator_params(tmLQCD_deflator_params*params, const int op_id) {
+  if(!tmLQCD_invert_initialised) {
+    fprintf(stderr, "[tmLQCD_get_deflator_params] tmLQCD_invert_init must be called first. Aborting...\n");
+    return(-1);
+  }
+
+  if(operator_list[op_id].deflator_params.nconv == -1) {
+    fprintf(stderr, "[tmLQCD_get_deflator_params] deflator no initialized. Aborting...\n");
+    return(-2);
+  }
+
+  strcpy(params->type_name,  operator_list[op_id].deflator_params.type_name);
+  params->eoprec = operator_list[op_id].deflator_params.eoprec;
+  params->evecs  = operator_list[op_id].deflator_params.evecs;
+  params->prec   = operator_list[op_id].deflator_params.prec;
+  params->nev    = operator_list[op_id].deflator_params.nconv;
+
+  return(0);
+}  /* end of tmLQCD_get_deflator_params */
+
+/***************************************************************************************
+ * call the deflator function
+ ***************************************************************************************/
+int tmLQCD_init_deflator(const int op_id) {
+  int status;
+
+  if(op_id < 0 || op_id >= no_operators) {
+    fprintf(stderr, "[tmLQCD_init_deflator] op_id=%d not in valid range. Aborting...\n", op_id);
+    return(1);
+  }
+
+
+  if(operator_list[op_id].deflator_params.nconv > -1) {
+    fprintf(stderr, "[tmLQCD_init_deflator] deflator already initialized. Aborting...\n");
+    return(2);
+  }
+
+  /****************************************
+   * initialize parameters; this is otherwise
+   * done in operator.c or invert.c
+   ****************************************/
+  boundary(operator_list[op_id].kappa);
+  g_mu    = operator_list[op_id].mu;
+  g_c_sw  = operator_list[op_id].c_sw;
+  g_kappa = operator_list[op_id].kappa;
+             
+  if (g_cart_id == 0) {
+    fprintf(stdout, "# [tmLQCD_init_deflator] 2 kappa mu = %e, kappa = %e, c_sw = %e\n", g_mu, g_kappa, g_c_sw);
+  }
+
+  status = operator_list[op_id].deflator_params.init( &(operator_list[op_id].deflator_params) );
+  if(status != 0) {
+    fprintf(stderr, "[tmLQCD_init_deflator] Error from deflator_init, status was %d\n", status);
+    return(3);
+  }
+
+  return(0);
+}  /* end of tmLQCD_init_deflator */

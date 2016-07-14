@@ -87,4 +87,6 @@ typedef struct {
 
 #include "solver/sumr.h"
 
+#include "solver/deflated_cg.h"
+
 #endif

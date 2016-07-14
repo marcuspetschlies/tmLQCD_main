@@ -44,6 +44,14 @@ extern "C"
 #endif
   } tmLQCD_mpi_params;
 
+  typedef struct {
+    char type_name[100];
+    int  eoprec;
+    void *evecs;
+    int  prec;
+    int  nev;
+  } tmLQCD_deflator_params;
+
   int tmLQCD_invert_init(int argc, char *argv[], const int verbose);
   int tmLQCD_read_gauge(const int nconfig);
   int tmLQCD_invert(double * const propagator, double * const source,
@@ -53,7 +61,12 @@ extern "C"
   int tmLQCD_get_gauge_field_pointer(double ** gf);
   int tmLQCD_get_mpi_params(tmLQCD_mpi_params * params);
   int tmLQCD_get_lat_params(tmLQCD_lat_params * params);
-  
+ 
+  int tmLQCD_invert_eo(double * const propagator, double * const source, const int op_id);
+
+  int tmLQCD_get_deflator_params(tmLQCD_deflator_params*params, const int op_id);
+  int tmLQCD_init_deflator(const int op_id);
+
 #ifdef __cplusplus
 }
 #endif

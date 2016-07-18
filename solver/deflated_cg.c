@@ -415,6 +415,10 @@ int exactdeflated_cg(
     fprintf(stdout, "# [exactdefled_cg] Actual Resid of LinSys  : %+e\n",normsq);
   }
 
+  /* apply the adjoint operator again */
+  f_initial(ax,x);
+  /* copy back to x */
+  memcpy(x,ax,N*sizeof(spinor));
 
   /* free memory if this was your last system to solve */
   if(ncurRHS == nrhs) {

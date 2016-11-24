@@ -81,16 +81,16 @@ void evals_arpack(
   //================
    if(g_proc_id == g_stdio_proc)
    {       
-      fprintf(stdout,"Input to eigenvalues_arpack\n");
-      fprintf(stdout,"===========================\n");
-      fprintf(stdout,"n= %d\n", n);
-      fprintf(stdout,"The number of Ritz values requested is %d\n", nev);
-      fprintf(stdout,"The number of Arnoldi vectors generated is %d\n", ncv);
-      fprintf(stdout,"What portion of the spectrum which: %d\n", which);
-      fprintf(stdout,"polynomial acceleartion option %d\n", use_acc );
-      fprintf(stdout,"chebyshev polynomial paramaters: degree %d amin %+e amx %+e\n",cheb_k,amin,amax); 
-      fprintf(stdout,"The convergence criterion is %+e\n", tol);
-      fprintf(stdout,"maximum number of iterations for arpack %d\n",maxiter);
+      fprintf(stdout,"# [eigenvalues_arpack] Input to eigenvalues_arpack\n");
+      fprintf(stdout,"# [eigenvalues_arpack] ===========================\n");
+      fprintf(stdout,"# [eigenvalues_arpack] n= %d\n", n);
+      fprintf(stdout,"# [eigenvalues_arpack] The number of Ritz values requested is %d\n", nev);
+      fprintf(stdout,"# [eigenvalues_arpack] The number of Arnoldi vectors generated is %d\n", ncv);
+      fprintf(stdout,"# [eigenvalues_arpack] What portion of the spectrum which: %d\n", which);
+      fprintf(stdout,"# [eigenvalues_arpack] polynomial acceleartion option %d\n", use_acc );
+      fprintf(stdout,"# [eigenvalues_arpack] chebyshev polynomial paramaters: degree %d amin %+e amx %+e\n",cheb_k,amin,amax); 
+      fprintf(stdout,"# [eigenvalues_arpack] The convergence criterion is %+e\n", tol);
+      fprintf(stdout,"# [eigenvalues_arpack] maximum number of iterations for arpack %d\n",maxiter);
    }
 
    //create the MPI communicator
@@ -100,7 +100,7 @@ void evals_arpack(
    //int comm_err = MPI_Comm_dup(MPI_COMM_WORLD,&comm); //duplicate the MPI_COMM_WORLD to create a communicator to be used with arpack
    //if(comm_err != MPI_SUCCESS) { //error when trying to duplicate the communicator
    //  if(g_proc_id == g_stdio_proc){
-   //    fprintf(stderr,"MPI_Comm_dup return with an error. Exciting...\n");
+   //    fprintf(stderr,"[eigenvalues_arpack] MPI_Comm_dup return with an error. Exciting...\n");
    //    exit(-1);
    //  }
    //}
@@ -160,31 +160,31 @@ void evals_arpack(
             && strcmp("LM", which_evals)))
     {
         if(g_proc_id == g_stdio_proc)
-          {fprintf(stderr,"Error: invalid value for which_evals\n"); fflush(stderr); exit(1);}
+          {fprintf(stderr,"[eigenvalues_arpack] Error: invalid value for which_evals\n"); fflush(stderr); exit(1);}
     }
 
    //check input
    if(nev>=N){
        if(g_proc_id == g_stdio_proc)
-          {fprintf(stderr,"number of eigenvalues requested should be less than the size of the matrix.\n"); fflush(stderr); exit(1);}
+          {fprintf(stderr,"[eigenvalues_arpack] number of eigenvalues requested should be less than the size of the matrix.\n"); fflush(stderr); exit(1);}
    }
 
    if(ncv < (nev+1)){
        if(g_proc_id == g_stdio_proc)
-          {fprintf(stderr,"search subspace must be larger than the number of requested eiegnvalues.\n"); fflush(stderr); exit(1);}
+          {fprintf(stderr,"[eigenvalues_arpack] search subspace must be larger than the number of requested eiegnvalues.\n"); fflush(stderr); exit(1);}
    }
 
    _Complex double *resid  = (_Complex double *) malloc(N*sizeof(_Complex double));
    if(resid == NULL){
     if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for resid in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for resid in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
 
 
    int *iparam = (int *) malloc(11*sizeof(int));
    if(iparam == NULL){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for iparam in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for iparam in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
 
 
@@ -222,7 +222,7 @@ void evals_arpack(
 
    if((ipntr == NULL) || (workd==NULL) || (workl==NULL) || (rwork==NULL) || (select==NULL) || (workev==NULL) || (sorted_evals==NULL) || (sorted_evals_index==NULL)){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for ipntr,workd,workl,rwork,select,workev,sorted_evals,sorted_evals_index in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for ipntr,workd,workl,rwork,select,workev,sorted_evals,sorted_evals_index in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
 
    double d1,d2,d3;
@@ -237,7 +237,7 @@ void evals_arpack(
    _x = malloc((ldv+ALIGN_BASE)*sizeof(spinor));
    if(_x==NULL){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for _x in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for _x in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
    else
       x  = (spinor *) ( ((unsigned long int)(_x)+ALIGN_BASE)&~ALIGN_BASE);
@@ -246,7 +246,7 @@ void evals_arpack(
    _ax = malloc((ldv+ALIGN_BASE)*sizeof(spinor));
    if(_ax==NULL){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for _ax in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for _ax in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
    else
      ax  = (spinor *) ( ((unsigned long int)(_ax)+ALIGN_BASE)&~ALIGN_BASE);
@@ -255,7 +255,7 @@ void evals_arpack(
    _tmps1 = malloc((ldv+ALIGN_BASE)*sizeof(spinor));
    if(_tmps1==NULL){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for _tmps1 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for _tmps1 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
    else
      tmps1  = (spinor *) ( ((unsigned long int)(_tmps1)+ALIGN_BASE)&~ALIGN_BASE);
@@ -264,7 +264,7 @@ void evals_arpack(
    _tmps2 = malloc((ldv+ALIGN_BASE)*sizeof(spinor));
    if(_tmps2==NULL){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory for _tmps2 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory for _tmps2 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
    else
      tmps2  = (spinor *) ( ((unsigned long int)(_tmps2)+ALIGN_BASE)&~ALIGN_BASE);
@@ -278,7 +278,7 @@ void evals_arpack(
    tmps2 = (spinor *) calloc(ldv,sizeof(spinor));
    if((x==NULL) || (ax==NULL) || (tmps1==NULL) || (tmps2==NULL)){
        if(g_proc_id == g_stdio_proc)
-       { fprintf(stderr,"Error: not enough memory in x, ax, tmps1, tmps2 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
+       { fprintf(stderr,"[eigenvalues_arpack] Error: not enough memory in x, ax, tmps1, tmps2 in eigenvalues_arpack.\n"); fflush(stderr); exit(1);}
    }
 
    #endif
@@ -309,9 +309,9 @@ void evals_arpack(
 		  &msglvl0,           /*mcgets*/
 		  &msglvl3            /*mceupd*/);
      
-     fprintf(stdout,"*** ARPACK verbosity set to mcaup2=3 mcaupd=3 mceupd=3; \n"
-	     "*** output is directed to '%s';\n"
-	     "*** if you don't see output, your memory may be corrupted\n",
+     fprintf(stdout,"# [arpack] *** ARPACK verbosity set to mcaup2=3 mcaupd=3 mceupd=3; \n"
+	     "# [arpack] *** output is directed to '%s';\n"
+	     "# [arpack] *** if you don't see output, your memory may be corrupted\n",
 	     arpack_logfile);
   }
 #else
@@ -337,9 +337,9 @@ void evals_arpack(
 		   &msglvl0,           /*mcgets*/
 		   &msglvl3            /*mceupd*/);
     
-     fprintf(stdout,"*** ARPACK verbosity set to mcaup2=3 mcaupd=3 mceupd=3; \n"
-	    "*** output is directed to '%s';\n"
-	    "*** if you don't see output, your memory may be corrupted\n",
+     fprintf(stdout,"# [arpack] *** ARPACK verbosity set to mcaup2=3 mcaupd=3 mceupd=3; \n"
+	    "# [arpack] *** output is directed to '%s';\n"
+	    "# [arpack] *** if you don't see output, your memory may be corrupted\n",
 	    arpack_logfile);
    }
 #endif   
@@ -385,14 +385,14 @@ void evals_arpack(
      if ( (*info) < 0 ) 
      {
          if(g_proc_id == g_stdio_proc){
-            fprintf(stderr,"Error with _naupd, info = %d\n", *info);
-            fprintf(stderr,"Check the documentation of _naupd\n");}
+            fprintf(stderr,"[eigenvalues_arpack] Error with _naupd, info = %d\n", *info);
+            fprintf(stderr,"[eigenvalues_arpack] Check the documentation of _naupd\n");}
      }
      else 
      {
         (*nconv) = iparam[4];
         if(g_proc_id == g_stdio_proc){
-          fprintf(stderr,"number of converged eigenvectors = %d\n", *nconv);}
+          fprintf(stderr,"[eigenvalues_arpack] number of converged eigenvectors = %d\n", *nconv);}
 
         //compute eigenvectors 
 #ifndef TM_USE_MPI
@@ -411,14 +411,14 @@ void evals_arpack(
         if( (*info)!=0) 
         {
            if(g_proc_id == g_stdio_proc){
-             fprintf(stderr,"Error with _neupd, info = %d \n",(*info));
-             fprintf(stderr,"Check the documentation of _neupd. \n");}
+             fprintf(stderr,"[eigenvalues_arpack] Error with _neupd, info = %d \n",(*info));
+             fprintf(stderr,"[eigenvalues_arpack] Check the documentation of _neupd. \n");}
         }
         else //report eiegnvalues and their residuals
         {
              if(g_proc_id == g_stdio_proc){
-               fprintf(stdout,"Ritz Values and their errors\n");
-               fprintf(stdout,"============================\n");
+               fprintf(stdout,"[eigenvalues_arpack] Ritz Values and their errors\n");
+               fprintf(stdout,"[eigenvalues_arpack] ============================\n");
              }
 
              (*nconv) = iparam[4];
@@ -426,7 +426,7 @@ void evals_arpack(
              {
                /* print out the computed ritz values and their error estimates */
                if(g_proc_id == g_stdio_proc)
-                  fprintf(stdout,"RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[j]),cimag(evals[j]),cabs(*(workl+ipntr[10]-1+j)));
+                  fprintf(stdout,"# [eigenvalues_arpack] RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[j]),cimag(evals[j]),cabs(*(workl+ipntr[10]-1+j)));
                sorted_evals_index[j] = j;
                sorted_evals[j] = cabs(evals[j]);
              }
@@ -435,13 +435,13 @@ void evals_arpack(
              quicksort((*nconv),sorted_evals,sorted_evals_index);
              //Print sorted evals
              if(g_proc_id == g_stdio_proc)
-                fprintf(stdout,"Sorted eigenvalues based on their absolute values\n");
+                fprintf(stdout,"# [eigenvalues_arpack] Sorted eigenvalues based on their absolute values\n");
 
              for(j=0; j< (*nconv); j++)
              {
                /* print out the computed ritz values and their error estimates */
                if(g_proc_id == g_stdio_proc)
-                  fprintf(stdout,"RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[sorted_evals_index[j]]),cimag(evals[sorted_evals_index[j]]),cabs(*(workl+ipntr[10]-1+sorted_evals_index[j])));
+                  fprintf(stdout,"i# [eigenvalues_arpack] RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[sorted_evals_index[j]]),cimag(evals[sorted_evals_index[j]]),cabs(*(workl+ipntr[10]-1+sorted_evals_index[j])));
 
              }
 
@@ -451,7 +451,7 @@ void evals_arpack(
         if( (*info)==1)
         {
            if(g_proc_id == g_stdio_proc)
-             fprintf(stderr,"Maximum number of iterations reached.\n");
+             fprintf(stderr,"[eigenvalues_arpack] Maximum number of iterations reached.\n");
         }
         else
         { 
@@ -460,20 +460,20 @@ void evals_arpack(
            {
               if((*info)==3)
               {  
-                 fprintf(stderr,"No shifts could be applied during implicit\n");
-                 fprintf(stderr,"Arnoldi update, try increasing NCV.\n");
+                 fprintf(stderr,"[eigenvalues_arpack] No shifts could be applied during implicit\n");
+                 fprintf(stderr,"[eigenvalues_arpack] Arnoldi update, try increasing NCV.\n");
               }
          
-              fprintf(stdout,"_NDRV1\n");
-              fprintf(stdout,"=======\n");
-              fprintf(stdout,"Size of the matrix is %d\n", N);
-              fprintf(stdout,"The number of Ritz values requested is %d\n", nev);
-              fprintf(stdout,"The number of Arnoldi vectors generated is %d\n", ncv);
-              fprintf(stdout,"What portion of the spectrum: %s\n", which_evals);
-              fprintf(stdout,"The number of converged Ritz values is %d\n", (*nconv) ); 
-              fprintf(stdout,"The number of Implicit Arnoldi update iterations taken is %d\n", iparam[2]);
-              fprintf(stdout,"The number of OP*x is %d\n", iparam[8]);
-              fprintf(stdout,"The convergence criterion is %+e\n", tol);
+              fprintf(stdout,"# [eigenvalues_arpack] _NDRV1\n");
+              fprintf(stdout,"# [eigenvalues_arpack] =======\n");
+              fprintf(stdout,"# [eigenvalues_arpack] Size of the matrix is %d\n", N);
+              fprintf(stdout,"# [eigenvalues_arpack] The number of Ritz values requested is %d\n", nev);
+              fprintf(stdout,"# [eigenvalues_arpack] The number of Arnoldi vectors generated is %d\n", ncv);
+              fprintf(stdout,"# [eigenvalues_arpack] What portion of the spectrum: %s\n", which_evals);
+              fprintf(stdout,"# [eigenvalues_arpack] The number of converged Ritz values is %d\n", (*nconv) ); 
+              fprintf(stdout,"# [eigenvalues_arpack] The number of Implicit Arnoldi update iterations taken is %d\n", iparam[2]);
+              fprintf(stdout,"# [eigenvalues_arpack] The number of OP*x is %d\n", iparam[8]);
+              fprintf(stdout,"# [eigenvalues_arpack] The convergence criterion is %+e\n", tol);
            }
           
         }

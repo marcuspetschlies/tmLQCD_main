@@ -94,6 +94,7 @@ typedef struct deflator_params_t {
    * init function
    *************************************/
   int (*init)(struct deflator_params_t*);
+  int (*fini)(struct deflator_params_t*);
 
 } deflator_params_t;
 

@@ -437,6 +437,7 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
       f(ax,r);
       c1 = scalar_prod(r,ax,N,parallel);
       H[i+nconv*i] = creal(c1);  /* diagonal should be real */
+      evals[i] = creal(c1)+ 0.*I;
       for(j=i+1; j<nconv; j++) {
         assign_complex_to_spinor(r,&evecs[j*12*N],12*N);
         c1 = scalar_prod(r,ax,N,parallel);
@@ -494,9 +495,11 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
       d3= sqrt(d2/d1);
  
       if(g_proc_id == g_stdio_proc) {
-        fprintf(stdout,"Eval[%06d]: %22.15E rnorm: %22.15E\n", i, hevals[i], d3); fflush(stdout);
+        fprintf(stdout,"# [make_exactdeflator] Eval %6d %25.16e %25.16e %25.16e\n", i, hevals[i], d3, creal(evals[i]) );
+        fflush(stdout);
       }
     } 
+
     free(H);
     free(HU);
     free(Hinv);
@@ -505,7 +508,8 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
     free(zheev_work);
     free(hevals);
     free(zheev_rwork);
-
+  } else {
+    memset(evals, 0, nconv*sizeof(double));
   }  /* if( (nconv_arpack>0) && (comp_evecs !=0)) */
 
   et2=gettime();
@@ -528,3 +532,51 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 
   return(0);
 }  /* end of make_exactdeflator */
+
+int fini_exactdeflator( deflator_params_t *deflator_params ) {
+
+  strcpy(deflator_params->type_name, "NA");
+  deflator_params->type = 0;
+
+  deflator_params->eoprec = -1;
+
+  deflator_params->f = (matrix_mult)NULL;
+  deflator_params->f32 = (matrix_mult32)NULL;
+
+  deflator_params->f_final = (matrix_mult)NULL;
+  deflator_params->f_initial = (matrix_mult)NULL;
+
+  deflator_params->projection_type = -1;
+
+  if( deflator_params->evecs != NULL ) free( deflator_params->evecs);
+  deflator_params->evecs = NULL;
+ 
+  if( deflator_params->evals != NULL ) free( deflator_params->evals );
+  deflator_params->evals = NULL;
+  deflator_params->prec = 0;
+
+  deflator_params->nconv = -1;
+  deflator_params->nev   =  0;
+  deflator_params->ncv   =  0;
+  deflator_params->evals_kind = 0;
+  deflator_params->comp_evecs = 0;
+  deflator_params->eig_tol = 0.;
+  deflator_params->eig_maxiter = 0;
+  strcpy(deflator_params->logfile, "NA");
+
+  deflator_params->use_acc = 0;
+  deflator_params->cheb_k = 0;
+  deflator_params->op_evmin = 0.;
+  deflator_params->op_evmax = 0.;
+   
+  deflator_params->write_ev = 0;
+  deflator_params->read_ev  = 0;
+  strcpy(deflator_params->evecs_filename, "NA");
+  strcpy(deflator_params->evecs_fileformat,"NA");
+
+  deflator_params->evecs_writeprec = 0;
+
+  deflator_params->init = NULL;
+  deflator_params->fini = NULL;
+  return(0);
+}  /* end of fini_exactdeflator */

@@ -441,7 +441,7 @@ void evals_arpack(
              {
                /* print out the computed ritz values and their error estimates */
                if(g_proc_id == g_stdio_proc)
-                  fprintf(stdout,"i# [eigenvalues_arpack] RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[sorted_evals_index[j]]),cimag(evals[sorted_evals_index[j]]),cabs(*(workl+ipntr[10]-1+sorted_evals_index[j])));
+                  fprintf(stdout,"# [eigenvalues_arpack] RitzValue[%06d]  %+e  %+e  error= %+e \n",j,creal(evals[sorted_evals_index[j]]),cimag(evals[sorted_evals_index[j]]),cabs(*(workl+ipntr[10]-1+sorted_evals_index[j])));
 
              }
 

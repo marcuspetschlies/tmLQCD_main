@@ -455,6 +455,10 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
     /* copy H into HU */
     tmpsize=nconv*nconv;
     _FT(zcopy)(&tmpsize,H,&ONE,HU,&ONE);
+    if(g_proc_id == g_stdio_proc) {
+      fprintf(stdout,"# [make_exactdeflator] done zcopy\n");
+      fflush(stdout);
+    }
 
     /* compute eigenvalues and eigenvectors of HU*/
     /* SUBROUTINE ZHEEV( JOBZ, UPLO, N, A, LDA, W, WORK, LWORK, RWORK,INFO ) */
@@ -466,6 +470,11 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
         fflush(stderr);
       }
       exit(1);
+    } else {
+      if(g_proc_id == g_stdio_proc) {
+        fprintf(stdout,"# [make_exactdeflator] done zheev\n");
+        fflush(stdout);
+      }
     }
 
     /* If you want to replace the Schur (orthonormal) basis by eigen basis
@@ -478,7 +487,7 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
     /* compute residuals and print out results */
 
     if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"# [make_exactdeflator] Ritz values of A and their residulas (||A*x-lambda*x||/||x||\n"); 
+      fprintf(stdout,"# [make_exactdeflator] Ritz values of A and their residulas (||A*x-lambda*x||)/||x||\n"); 
       fprintf(stdout,"# [make_exactdeflator] =============================================================\n");
       fflush(stdout);
     }

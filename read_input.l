@@ -978,8 +978,7 @@ static inline void rmQuotes(char *str){
   {SPC}*ARPACKEvecsFileformat{EQL}{FILENAME}+ {
     sscanf(yytext, " %[a-zA-Z] = %s", name, fname);
     strncpy( (optr->solver_params).arpack_evecs_fileformat,  fname, 200);
-    /* if(myverbose) */
-      printf("  ARPACK evecs filename prefix to %s line %d operator %d\n", fname, line_of_file, current_operator);
+    if(myverbose) printf("  ARPACK evecs filename prefix set to %s line %d operator %d\n", fname, line_of_file, current_operator);
   }
 
   {SPC}*ExtraMasses{EQL}{FLTLIST} {

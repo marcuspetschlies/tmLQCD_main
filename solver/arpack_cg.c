@@ -316,6 +316,7 @@ int arpack_cg(
 
         if(strcmp(arpack_evecs_fileformat, "partfile") == 0 ) {
 
+          if( g_cart_id == 0 ) fprintf(stdout, "# [arpack_cg] writing evecs in partfile format\n");
           /* set evec filenmae */
           sprintf(evecs_filename, "%s.%.5d.pt%.2dpx%.2dpy%.2dpz%.2d", arpack_evecs_filename, nconv, g_proc_coords[0], g_proc_coords[1], g_proc_coords[2], g_proc_coords[3]);
 
@@ -396,7 +397,6 @@ int arpack_cg(
     }          /* end of if arpack_read_ev == 1 */
 
     H        = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-    HU       = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
     Hinv     = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
     initwork = (_Complex double *) malloc(nconv*sizeof(_Complex double)); 
     IPIV     = (int *) malloc(nconv*sizeof(int));
@@ -405,10 +405,10 @@ int arpack_cg(
     zheev_rwork = (double *) malloc(3*nconv*sizeof(double));
     hevals      = (double *) malloc(nconv*sizeof(double));
 
-    if((H==NULL) || (HU==NULL) || (Hinv==NULL) || (initwork==NULL) || (IPIV==NULL) || (zheev_lwork==NULL) || (zheev_rwork==NULL) || (hevals==NULL))
+    if((H==NULL) || (Hinv==NULL) || (initwork==NULL) || (IPIV==NULL) || (zheev_lwork==NULL) || (zheev_rwork==NULL) || (hevals==NULL))
     {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[arpack_cg] insufficient memory for H, HU, Hinv, initwork, IPIV, zheev_lwork, zheev_rwork, hevals inside arpack_cg.\n");
+          fprintf(stderr,"[arpack_cg] insufficient memory for H, Hinv, initwork, IPIV, zheev_lwork, zheev_rwork, hevals inside arpack_cg.\n");
        exit(1);
     }
 
@@ -466,7 +466,7 @@ int arpack_cg(
     if(g_cart_id == 0) {
       for(i=0; i<nconv; i++) {
       for(j=0; j<nconv; j++) {
-        fprintf(stdout, "H[%d, %d] = %25.16e %25.16e\n", i, j, creal(H[i*nconv+j]), cimag(H[i*nconv+j]));
+        fprintf(stdout, "# [arpack_cg] H[%d, %d] = %25.16e %25.16e\n", i, j, creal(H[i*nconv+j]), cimag(H[i*nconv+j]));
       }}
     }
 */
@@ -477,6 +477,12 @@ int arpack_cg(
      /* compute Ritz values and Ritz vectors if needed */
      if( (nconv>0) && (comp_evecs !=0))
      {
+         HU = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
+         if( HU==NULL ) {
+           if(g_proc_id == g_stdio_proc)
+             fprintf(stderr,"[arpack_cg] insufficient memory for HU inside arpack_cg\n");
+             exit(2);
+         }
          /* copy H into HU */
          tmpsize=nconv*nconv;
          _FT(zcopy)(&tmpsize,H,&ONE,HU,&ONE);
@@ -532,6 +538,7 @@ int arpack_cg(
 	    if(g_proc_id == g_stdio_proc)
 	    {fprintf(stdout,"Eval[%06d]: %22.15E rnorm: %22.15E\n", i, hevals[i], d3); fflush(stdout);}
         } 
+        free( HU ); HU = NULL;
      }  /* if( (nconv_arpack>0) && (comp_evecs !=0)) */
      et2=gettime();
      if(g_proc_id == g_stdio_proc) {
@@ -719,7 +726,7 @@ int arpack_cg(
 #else
     free(ax); free(r); free(tmps1); free(tmps2);
 #endif
-    free(evecs); free(evals); free(H); free(HU); free(Hinv);
+    free(evecs); free(evals); free(H); free(Hinv);
     free(initwork); free(tmpv1); free(zheev_work);
     free(hevals); free(zheev_rwork); free(IPIV);
   }

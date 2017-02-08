@@ -706,9 +706,9 @@ static inline void rmQuotes(char *str){
     if(myverbose) printf("   evecs precision for writing set to %d line %d operator %d\n", a, line_of_file, current_operator);
   }
   {SPC}*EvecsFileformat{EQL}{FILENAME}+ {
-    sscanf(yytext, " %[a-zA-Z] = %d", name, fname);
+    sscanf(yytext, " %[a-zA-Z] = %s", name, fname);
     strncpy( (optr->deflator_params).evecs_fileformat, fname, 100);
-    if(myverbose) printf("   evecs precision for writing set to %d line %d operator %d\n", a, line_of_file, current_operator);
+    if(myverbose) printf("  evecs_fileformat for writing set to %s line %d operator %d\n", fname, line_of_file, current_operator);
   }
   {SPC}*EvecsPrecision{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
@@ -978,7 +978,7 @@ static inline void rmQuotes(char *str){
   {SPC}*ARPACKEvecsFileformat{EQL}{FILENAME}+ {
     sscanf(yytext, " %[a-zA-Z] = %s", name, fname);
     strncpy( (optr->solver_params).arpack_evecs_fileformat,  fname, 200);
-    if(myverbose) printf("  ARPACK evecs filename prefix set to %s line %d operator %d\n", fname, line_of_file, current_operator);
+    if(myverbose) printf("  ARPACK evecs_fileformat set to %s line %d operator %d\n", fname, line_of_file, current_operator);
   }
 
   {SPC}*ExtraMasses{EQL}{FLTLIST} {

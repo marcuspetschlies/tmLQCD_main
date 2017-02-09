@@ -434,6 +434,9 @@ int arpack_cg(
 
          /* calculate d1 <- | r |^2 */
          d1 = square_norm( r, N, parallel);
+         
+         /* TEST */
+         /* if ( g_cart_id == 0 ) fprintf(stdout, "# [arpack_cg] |evec(%2d)| = %e\n", i, sqrt(d1)); */
 
          /* apply the operator 
           *   ax <- Op r */
@@ -447,11 +450,7 @@ int arpack_cg(
           * (2) from the scalar product (r, ax) / (r, r) = lambda (r, r) / (r, r) */
          c1 = scalar_prod( r, ax, N, parallel);
          hevals[i] = creal( c1 ) / d1;
-         if (projection_type == 0 ) {
-           zhevals_inverse[i] = 1. / hevals[i] + 0.*I;
-         } else if (projection_type == 1 ) {
-           zhevals_inverse[i] = 1. / (hevals[i]*hevals[i]) + 0.*I;
-         }
+         zhevals_inverse[i] = 1. / hevals[i] + 0.*I;
                         
          /* tmps1 <- lambda_i x r */
          mul_r( tmps1, hevals[i], r, N);
@@ -601,27 +600,41 @@ int arpack_cg(
       /* zprojected_spinor_weighted <- elementwise lambda^-1 x zprojected_spinor */
       _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
 
+      if ( projection_type == 1 ) {
+        memcpy(zprojected_spinor, zprojected_spinor_weighted, nconv*sizeof(_Complex double) );
+
+        /* second multiplication due normalization of eigenvectors for projection type 1, W^+ W = diag( lambda ) */
+        _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
+      }
+
+      /* TEST */
+      /*
+      if ( g_cart_id == 0 ) {
+        for(i=0; i<nconv; i++) {
+          fprintf(stdout, "# [arpack_cg] %3d z <- %25.16e +1.i* %25.16e ; w <-  %25.16e +1.i* %25.16e\n", i, 
+              creal( zprojected_spinor[i] ), cimag( zprojected_spinor[i] ),
+              creal( zprojected_spinor_weighted[i] ), cimag( zprojected_spinor_weighted[i] ));
+        }
+      }
+      */
+
       zgemv_TRANS = 'N';
       zgemv_ALPHA = 1. + 0.*I;
+      zgemv_BETA  = 0. + 0.*I;
       zgemv_M     = 12*N;
       zgemv_N     = nconv;
       zgemv_LDA   = zgemv_M;
       zgemv_X     = zprojected_spinor_weighted;
+      zgemv_Y     = (_Complex double*)tmps1;  /* IS THIS SAFE? */
+
+      /* t <- V zprojected_spinor_weighted  */
+      _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
 
       if ( projection_type == 0 ) {
-        zgemv_BETA  = 1. + 0.*I;
-        zgemv_Y     = (_Complex double*)r;
-
-        /* r <- r + V zprojected_spinor_weighted  */
-        _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
+        /* x <- x + tmps1 */
+        assign_add_mul(x, tmps1, 1., N);
 
       } else if ( projection_type == 1 ) {
-        zgemv_BETA  = 0. + 0.*I;
-        zgemv_Y     = (_Complex double*)tmps1;  /* IS THIS SAFE? */
-
-        /* tmps1 <- V zprojected_spinor_weighted  */
-        _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
-
         /* tmps2 <- F tmps1 */
         f_final( tmps2, tmps1);
 

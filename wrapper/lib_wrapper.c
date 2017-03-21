@@ -504,6 +504,39 @@ int tmLQCD_init_deflator(const int op_id) {
   return(0);
 }  /* end of tmLQCD_init_deflator */
 
+/***************************************************************************************
+ * call the deflator function
+ ***************************************************************************************/
+int tmLQCD_fini_deflator(const int op_id) {
+
+  if(op_id < 0 || op_id >= no_operators) {
+    fprintf(stderr, "[tmLQCD_fini_deflator] op_id=%d not in valid range. Aborting...\n", op_id);
+    return(1);
+  }
+
+  if(operator_list[op_id].deflator_params.nconv = -1) {
+    fprintf(stderr, "[tmLQCD_fini_deflator] deflator not initialized. Aborting...\n");
+    return(2);
+  }
+
+  operator_list[op_id].deflator_params.nconv = -1;
+  if( operator_list[op_id].deflator_params.evecs != NULL ) {
+    free ( operator_list[op_id].deflator_params.evecs );
+    operator_list[op_id].deflator_params.evecs = NULL;
+  }
+
+  if ( operator_list[op_id].deflator_params.evals != NULL ) {
+    free ( operator_list[op_id].deflator_params.evals );
+    operator_list[op_id].deflator_params.evals = NULL;
+  }
+
+  return(0);
+}  /* end of tmLQCD_fini_deflator */
+
+
+/***************************************************************************************
+ * copy essential deflator information from operator op_id2 to operator op_id1
+ ***************************************************************************************/
 int tmLQCD_set_deflator_fields(const int op_id1, const int op_id2) {
   int status;
 

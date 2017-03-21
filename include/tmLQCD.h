@@ -67,6 +67,7 @@ extern "C"
 
   int tmLQCD_get_deflator_params(tmLQCD_deflator_params*params, const int op_id);
   int tmLQCD_init_deflator(const int op_id);
+  int tmLQCD_fini_deflator(const int op_id);
   int tmLQCD_set_deflator_fields(const int op_id1, const int op_id2);
 
 #ifdef __cplusplus

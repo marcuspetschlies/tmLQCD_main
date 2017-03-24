@@ -99,5 +99,5 @@ typedef struct deflator_params_t {
 } deflator_params_t;
 
 int make_exactdeflator( deflator_params_t *deflator_params);
-
+int fini_exactdeflator( deflator_params_t *deflator_params );
 #endif

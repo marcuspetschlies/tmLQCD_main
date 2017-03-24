@@ -54,7 +54,9 @@
 int make_exactdeflator( deflator_params_t *deflator_params ) {
 
   /* Static variables and arrays. */
+#if ( (defined SSE) || (defined SSE2) || (defined SSE3)) 
   void *_ax,*_r,*_tmps1,*_tmps2;
+#endif
   spinor *ax,*r,*tmps1,*tmps2;
   _Complex double *evecs,*evals,*H,*HU,*Hinv,*initwork,*tmpv1;
   _Complex double *zheev_work;
@@ -62,7 +64,6 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   int *IPIV; 
   int info_arpack=0;
   int nconv=0; /* number of converged eigenvectors as returned by arpack */
-  int exit_status = 0;
   int i,j,tmpsize;
   char cV='V',cN='N', cU='U';   
   int ONE=1;
@@ -225,20 +226,27 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   }
 #endif
 
-  deflator_params->evecs = malloc(ncv*12*N*sizeof(_Complex double)); /* note: allocation without RAND */
-  deflator_params->evals = malloc(ncv*sizeof(_Complex double)); 
   deflator_params->prec  = 64;
   tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
-
-  evecs = (_Complex double *)deflator_params->evecs;
-  evals = (_Complex double *)deflator_params->evals;
-
-  if((evecs == NULL)  || (evals==NULL) || (tmpv1==NULL)) {
-    if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for evecs and evals inside deflator_cg.\n");
+  if( tmpv1==NULL ) {
+    if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for tmpv1\n");
     exit(1);
   }
 
+
   if ( deflator_read_ev == 1) {
+
+    if(g_proc_id == g_stdio_proc) fprintf(stdout,"[make_exactdeflator] reading ev\n");
+
+    /* allocate nev spinor fields only */
+    deflator_params->evecs = malloc(nev*12*N*sizeof(_Complex double)); /* note: allocation without RAND */
+    deflator_params->evals = malloc(nev*sizeof(_Complex double)); 
+    evecs = (_Complex double *)deflator_params->evecs;
+    evals = (_Complex double *)deflator_params->evals;
+    if( (evecs == NULL)  || (evals==NULL) ) {
+      if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for evecs and evals inside deflator_cg.\n");
+      exit(1);
+    }
 
     if (strcmp(deflator_evecs_fileformat, "partfile") == 0) {
       /* set evec filenmae */
@@ -309,7 +317,17 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
     nconv = nev;
     deflator_params->nconv = nev;
     info_arpack = 0;
-  } else {
+  } else {  /* else of if read evecs */
+
+    /* allocate temporary fields for ncv spinor fields are required by naupd */
+    evecs = malloc(ncv*12*N*sizeof(_Complex double)); /* note: allocation without RAND */
+    evals = malloc(ncv*sizeof(_Complex double));
+    if((evecs == NULL)  || (evals==NULL) ) {
+      if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for evecs and evals\n");
+      exit(1);
+    }
+
+
     et1=gettime();
     evals_arpack(N,nev,ncv,kind,acc,cheb_k,emin,emax,evals,evecs,deflator_eig_tol,deflator_eig_maxiter,f,&info_arpack,&nconv,deflator_logfile);
     et2=gettime();
@@ -404,6 +422,24 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
       }      /* of if deflator_evecs_fileformat */
 
     }        /* end of if deflator_write_ev == 1 */
+
+    deflator_params->evecs = malloc(nev*12*N*sizeof(_Complex double)); /* note: allocation without RAND */
+    deflator_params->evals = malloc(nev*sizeof(_Complex double));
+ 
+    if(( deflator_params->evecs == NULL)  || ( deflator_params->evals == NULL) ) {
+      if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for deflator evecs and deflator evals\n");
+      exit(1);
+    }
+
+    /* copy part of temporary fields to deflator struct fields */
+    memcpy( deflator_params->evecs, evecs, nev*12*(N*sizeof(_Complex double)) );
+    memcpy( deflator_params->evals, evals, nev*sizeof(_Complex double) );
+    /* free temporary fields */
+    free( evecs );
+    free( evals );
+    /* for the remainder, set evecs and eval to deflator struct fields */
+    evecs = deflator_params->evecs;
+    evals = deflator_params->evals;
 
   }          /* end of if deflator_read_ev == 1 */
 
@@ -544,6 +580,14 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 
 int fini_exactdeflator( deflator_params_t *deflator_params ) {
 
+  deflator_params->nconv = -1;
+  if( deflator_params->evecs != NULL ) free( deflator_params->evecs);
+  deflator_params->evecs = NULL;
+ 
+  if( deflator_params->evals != NULL ) free( deflator_params->evals );
+  deflator_params->evals = NULL;
+
+
   strcpy(deflator_params->type_name, "NA");
   deflator_params->type = 0;
 
@@ -557,14 +601,8 @@ int fini_exactdeflator( deflator_params_t *deflator_params ) {
 
   deflator_params->projection_type = -1;
 
-  if( deflator_params->evecs != NULL ) free( deflator_params->evecs);
-  deflator_params->evecs = NULL;
- 
-  if( deflator_params->evals != NULL ) free( deflator_params->evals );
-  deflator_params->evals = NULL;
   deflator_params->prec = 0;
 
-  deflator_params->nconv = -1;
   deflator_params->nev   =  0;
   deflator_params->ncv   =  0;
   deflator_params->evals_kind = 0;
@@ -577,7 +615,7 @@ int fini_exactdeflator( deflator_params_t *deflator_params ) {
   deflator_params->cheb_k = 0;
   deflator_params->op_evmin = 0.;
   deflator_params->op_evmax = 0.;
-   
+
   deflator_params->write_ev = 0;
   deflator_params->read_ev  = 0;
   strcpy(deflator_params->evecs_filename, "NA");
@@ -587,5 +625,7 @@ int fini_exactdeflator( deflator_params_t *deflator_params ) {
 
   deflator_params->init = NULL;
   deflator_params->fini = NULL;
+#if 0  
+#endif  /* of if 0 */
   return(0);
 }  /* end of fini_exactdeflator */

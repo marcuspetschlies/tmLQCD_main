@@ -509,25 +509,22 @@ int tmLQCD_init_deflator(const int op_id) {
  ***************************************************************************************/
 int tmLQCD_fini_deflator(const int op_id) {
 
+  int status;
+
   if(op_id < 0 || op_id >= no_operators) {
     fprintf(stderr, "[tmLQCD_fini_deflator] op_id=%d not in valid range. Aborting...\n", op_id);
     return(1);
   }
 
-  if(operator_list[op_id].deflator_params.nconv = -1) {
+  if(operator_list[op_id].deflator_params.nconv == -1) {
     fprintf(stderr, "[tmLQCD_fini_deflator] deflator not initialized. Aborting...\n");
     return(2);
   }
 
-  operator_list[op_id].deflator_params.nconv = -1;
-  if( operator_list[op_id].deflator_params.evecs != NULL ) {
-    free ( operator_list[op_id].deflator_params.evecs );
-    operator_list[op_id].deflator_params.evecs = NULL;
-  }
-
-  if ( operator_list[op_id].deflator_params.evals != NULL ) {
-    free ( operator_list[op_id].deflator_params.evals );
-    operator_list[op_id].deflator_params.evals = NULL;
+  status = operator_list[op_id].deflator_params.fini( &(operator_list[op_id].deflator_params) );
+  if( status != 0) {
+    fprintf(stderr, "[tmLQCD_fini_deflator] Error from deflator_fini, status was %d\n", status);
+    return(3);
   }
 
   return(0);

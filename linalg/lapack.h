@@ -64,6 +64,9 @@ extern void _FT(zgetrf)();
 extern void _FT(zgetrs)();
 extern void _FT(zgeqrf)();
 extern void _FT(zunmqr)();
+extern void _FT(zdotu)();
+extern void _FT(zgemv)();
+extern void _FT(zhbmv)();
 
 #else
 
@@ -136,6 +139,13 @@ extern void _FT(zgeqrf)(int *M, int *N, _Complex double *A, int *LDA, _Complex d
 extern void _FT(zunmqr)(char *SIDE, char *TRANS, int *M, int *N, int *K,
                          _Complex double  *A, int *LDA, _Complex double  *TAU, _Complex double  *C,
                          int *LDC, _Complex double  *WORK, int *LWORK, int *INFO);
+
+extern void _FT(zdotu)( int*N, _Complex double*ZX, int*INCX, _Complex double *ZY, int*INCY);
+
+extern void _FT(zgemv)( char*TRANS, int*M, int*N, _Complex double *ALPHA, _Complex double *A, int*LDA, _Complex double *X, int*INCX, _Complex double *BETA, _Complex double *Y, int*INCY, int LEN_TRANS);
+
+extern void _FT(zhbmv)(char*UPLO, int*N, int*K, _Complex double*ALPHA, _Complex double*A, int*LDA, _Complex double*X, int*INCX, _Complex double*BETA, _Complex double*Y, int*INCY, int LEN_UPLO) ;  
+
 #endif
 
 #endif

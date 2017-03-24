@@ -67,19 +67,17 @@ int arpack_cg(
   static int ncurRHS=0;                  /* current number of the system being solved */                   
   static void *_ax,*_r,*_tmps1,*_tmps2;                  
   static spinor *ax,*r,*tmps1,*tmps2;                  
-  static _Complex double *evecs,*evals,*H,*HU,*Hinv,*initwork,*tmpv1;
-  static _Complex double *zheev_work;
-  static double *hevals,*zheev_rwork;
-  static int *IPIV; 
+  static _Complex double *evecs, *evals;
+  static double *hevals;
+  static _Complex double *zhevals_inverse;
+  static _Complex double *zprojected_spinor;
+  static _Complex double *zprojected_spinor_weighted;
   static int info_arpack=0;
   static int nconv=0; /* number of converged eigenvectors as returned by arpack */
-  int i,j,tmpsize;
-  char cV='V',cN='N', cU='U';   
-  int ONE=1;
-  int zheev_lwork,zheev_info;
-  _Complex double c1, c2, c3, tpone=1.0,tzero=0.0;
-  double d1,d2,d3;
-  double et1,et2;  /* timing variables */
+  int i, j;
+  _Complex double c1;
+  double d1, d2, d3;
+  double et1, et2;  /* timing variables */
   char evecs_filename[500];
   FILE *evecs_fs=NULL;
   size_t evecs_count;
@@ -131,7 +129,7 @@ int arpack_cg(
   /*(IN) 0 don't compute the eiegnvalues and their residuals of the original system 
          1 compute the eigenvalues and the residuals for the original system (the orthonormal basis
            still be used in deflation and they are not overwritten).*/
-  int comp_evecs =   solver_params.arpackcg_comp_evecs;
+  /* int comp_evecs =   solver_params.arpackcg_comp_evecs; */
   /*(IN) 0 no polynomial acceleration; 1 use polynomial acceleration*/
   int acc =   solver_params.use_acc;
   /*(IN) degree of the Chebyshev polynomial (irrelevant if acc=0)*/
@@ -218,9 +216,8 @@ int arpack_cg(
 
     evecs = (_Complex double *) malloc(ncv*12*N*sizeof(_Complex double)); /* note: no extra buffer  */
     evals = (_Complex double *) malloc(ncv*sizeof(_Complex double)); 
-    tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
 
-    if((evecs == NULL)  || (evals==NULL) || (tmpv1==NULL))
+    if((evecs == NULL)  || (evals==NULL) )
     {
        if(g_proc_id == g_stdio_proc)
           fprintf(stderr,"[arpack_cg] insufficient memory for evecs and evals inside arpack_cg.\n");
@@ -396,160 +393,94 @@ int arpack_cg(
 
     }          /* end of if arpack_read_ev == 1 */
 
-    H        = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-    Hinv     = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-    initwork = (_Complex double *) malloc(nconv*sizeof(_Complex double)); 
-    IPIV     = (int *) malloc(nconv*sizeof(int));
-    zheev_lwork = 3*nconv;
-    zheev_work  = (_Complex double *) malloc(zheev_lwork*sizeof(_Complex double));
-    zheev_rwork = (double *) malloc(3*nconv*sizeof(double));
-    hevals      = (double *) malloc(nconv*sizeof(double));
 
-    if((H==NULL) || (Hinv==NULL) || (initwork==NULL) || (IPIV==NULL) || (zheev_lwork==NULL) || (zheev_rwork==NULL) || (hevals==NULL))
-    {
+    hevals            = (double *) malloc(nconv*sizeof(double));
+    zhevals_inverse   = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+    zprojected_spinor = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+    zprojected_spinor_weighted = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+
+    if( (hevals==NULL) || (zhevals_inverse == NULL) || ( zprojected_spinor == NULL ) || (zprojected_spinor_weighted == NULL)  ) {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[arpack_cg] insufficient memory for H, Hinv, initwork, IPIV, zheev_lwork, zheev_rwork, hevals inside arpack_cg.\n");
+          fprintf(stderr,"[arpack_cg] error from malloc\n");
        exit(1);
     }
 
-    et1=gettime();
-    /* compute the elements of the hermitian matrix H 
-       leading dimension is nconv and active dimension is nconv */
-    
-    if( projection_type == 0) {
-    
-      for(i=0; i<nconv; i++)
-      {
-        assign_complex_to_spinor(r,&evecs[i*12*N],12*N);
-        f(ax,r);
-        c1 = scalar_prod(r,ax,N,parallel);
-        H[i+nconv*i] = creal(c1);  /* diagonal should be real */
-        for(j=i+1; j<nconv; j++)
-        {
-          assign_complex_to_spinor(r,&evecs[j*12*N],12*N);
-          c1 = scalar_prod(r,ax,N,parallel);
-          H[j+nconv*i] = c1;
-          H[i+nconv*j] = conj(c1); /* enforce hermiticity */
-        }
-      }
+     et1 = gettime();
+     /**************************************************
+      * compute eigenvalues for the operator
+      **************************************************/
+     if( nconv > 0 ) {
 
-    } else if ( projection_type == 1 )  {
+       if(g_proc_id == g_stdio_proc) {
+         fprintf(stdout,"# [arpack_cg] Eigenvalues of A and their residulas (||A*x-lambda*x||/||x||\n"); 
+         fprintf(stdout,"# [arpack_cg] =============================================================\n");
+         fflush(stdout);
+       }
 
-      for(i=0; i<nconv; i++)
-      {
-        assign_complex_to_spinor(tmps1, &evecs[i*12*N], 12*N);
-        f_final(r, tmps1);
-        f(ax,r);
-        c1 = scalar_prod(r,ax,N,parallel);
-        c2 = scalar_prod(r,r,N,parallel);
-        H[i+nconv*i] = creal(c1) / creal(c2);   /* diagonal should be real */
-        for(j=i+1; j<nconv; j++)
-        {
-          assign_complex_to_spinor(tmps1, &evecs[j*12*N], 12*N);
-          f_final(r, tmps1);
-          c1 = scalar_prod(r,ax,N,parallel);
-          c3 = scalar_prod(r, r, N, parallel);
+       for ( i=0; i < nconv; i++ ) {
 
-          H[j+nconv*i] = c1 / sqrt( creal(c2) * creal(c3) );
-          H[i+nconv*j] = conj(c1) / sqrt( creal(c2) * creal(c3) ); /* enforce hermiticity */
-        }
-      }
-    }
+         if ( projection_type == 0) {
+           /* Op = F F^+, F = C^+ , Op = C^+ C^- */
+           /* r <- evec no. i (with possible alignment for sse) */
+           assign_complex_to_spinor( r, &evecs[i*12*N], 12*N);
+         } else if ( projection_type == 1 ) {
+           /* Op = F F^+, F = C^- , Op = C^- C^+ */
+           /* tmps1 <- evec no. i */
+           assign_complex_to_spinor(tmps1, &evecs[i*12*N], 12*N);
 
-
-    et2=gettime();
-    if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"[arpack_cg] time to compute H: %+e\n",et2-et1);
-    }
-
-/*
-    if(g_cart_id == 0) {
-      for(i=0; i<nconv; i++) {
-      for(j=0; j<nconv; j++) {
-        fprintf(stdout, "# [arpack_cg] H[%d, %d] = %25.16e %25.16e\n", i, j, creal(H[i*nconv+j]), cimag(H[i*nconv+j]));
-      }}
-    }
-*/
-
-
-
-     et1=gettime();
-     /* compute Ritz values and Ritz vectors if needed */
-     if( (nconv>0) && (comp_evecs !=0))
-     {
-         HU = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-         if( HU==NULL ) {
-           if(g_proc_id == g_stdio_proc)
-             fprintf(stderr,"[arpack_cg] insufficient memory for HU inside arpack_cg\n");
-             exit(2);
-         }
-         /* copy H into HU */
-         tmpsize=nconv*nconv;
-         _FT(zcopy)(&tmpsize,H,&ONE,HU,&ONE);
-
-         /* compute eigenvalues and eigenvectors of HU*/
-         /* SUBROUTINE ZHEEV( JOBZ, UPLO, N, A, LDA, W, WORK, LWORK, RWORK,INFO ) */
-         _FT(zheev)(&cV,&cU,&nconv,HU,&nconv,hevals,zheev_work,&zheev_lwork,zheev_rwork,&zheev_info,1,1);
-
-         if(zheev_info != 0)
-         {
-	    if(g_proc_id == g_stdio_proc) 
-	    {
-	        fprintf(stderr,"[arpack_cg] Error in ZHEEV:, info =  %d\n",zheev_info); 
-                fflush(stderr);
-	    }
-	    exit(1);
+           /* r <- F x */
+           f_final(r, tmps1);
          }
 
-         /* If you want to replace the schur (orthonormal) basis by eigen basis
-            use something like this. It is better to use the schur basis because
-            they are better conditioned. Use this part only to get the eigenvalues
-            and their resduals for the operator (D^\daggerD)
-            esize=(ncv-nconv)*12*N;
-            Zrestart_X(evecs,12*N,HU,12*N,nconv,nconv,&evecs[nconv*N],esize); */
+         /* calculate d1 <- | r |^2 */
+         d1 = square_norm( r, N, parallel);
+         
+         /* TEST */
+         /* if ( g_cart_id == 0 ) fprintf(stdout, "# [arpack_cg] |evec(%2d)| = %e\n", i, sqrt(d1)); */
 
-         /* compute residuals and print out results */
+         /* apply the operator 
+          *   ax <- Op r */
+         f( ax, r);
 
-	 if(g_proc_id == g_stdio_proc)
-	 {fprintf(stdout,"# [arpack_cg] Ritz values of A and their residulas (||A*x-lambda*x||/||x||\n"); 
-          fprintf(stdout,"# [arpack_cg] =============================================================\n");
-          fflush(stdout);}
+         /* determine the eigenvalue */
+         /* (1) from the square norm of ax */
+         /* hevals[i] = sqrt( square_norm( ax, N, parallel) ); */
 
-         for(i=0; i<nconv; i++)
-         {
-	    tmpsize=12*N;
-            _FT(zgemv)(&cN,&tmpsize,&nconv,&tpone,evecs,&tmpsize,
-		       &HU[i*nconv],&ONE,&tzero,tmpv1,&ONE,1);
+         /* 
+          * (2) from the scalar product (r, ax) / (r, r) = lambda (r, r) / (r, r) */
+         c1 = scalar_prod( r, ax, N, parallel);
+         hevals[i] = creal( c1 ) / d1;
+         zhevals_inverse[i] = 1. / hevals[i] + 0.*I;
+                        
+         /* tmps1 <- lambda_i x r */
+         mul_r( tmps1, hevals[i], r, N);
 
-            assign_complex_to_spinor(r,tmpv1,12*N);
+         /* tmps2 <- ax - tmps1 = Op r - lambda_i r */
+         diff( tmps2, ax, tmps1, N);
 
-            d1=square_norm(r,N,parallel);
-            
-            f(ax,r);
+         /* d2 <- | tmps2 |^2  */
+         d2= square_norm( tmps2, N, parallel);
 
-            mul_r(tmps1,hevals[i],r,N);
+         /* d3 <- | Op evec_i - lambda_i evec_i | / lambda_i */
+         d3= sqrt(d2/d1);
 
-            diff(tmps2,ax,tmps1,N);
-	    
-	    d2= square_norm(tmps2,N,parallel);
+         if(g_proc_id == g_stdio_proc) {
+           fprintf(stdout,"Eval[%06d]: %22.15E rnorm: %22.15E\n", i, hevals[i], d3); fflush(stdout);
+         }
 
-            d3= sqrt(d2/d1);
-	    
-	    if(g_proc_id == g_stdio_proc)
-	    {fprintf(stdout,"Eval[%06d]: %22.15E rnorm: %22.15E\n", i, hevals[i], d3); fflush(stdout);}
-        } 
-        free( HU ); HU = NULL;
-     }  /* if( (nconv_arpack>0) && (comp_evecs !=0)) */
-     et2=gettime();
+       }   /* end of loop on eigenpairs */
+
+     }  /* end of if( nconv > 0 ) */
+
+     et2 = gettime();
+
      if(g_proc_id == g_stdio_proc) {
-       fprintf(stdout,"[arpack_cg] time to compute eigenvectors: %+e\n",et2-et1);
+       fprintf(stdout,"[arpack_cg] time to compute eigenvectors: %e\n",et2-et1);
      }
 
   }  /* if(ncurRHS==0) */
     
   double eps_sq_used,restart_eps_sq_used;  /* tolerance squared for the linear system */
-
-  double cur_res; /* current residual squared */
 
   /*increment the RHS counter*/
   ncurRHS = ncurRHS +1; 
@@ -573,7 +504,6 @@ int arpack_cg(
   double wt1,wt2,wE,wI;
   double normsq,tol_sq;
   int flag,maxit_remain,numIts,its;
-  int info_lapack;
 
   wE = 0.0; wI = 0.0;     /* Start accumulator timers */
   flag = -1;    	  /* System has not converged yet */
@@ -581,86 +511,143 @@ int arpack_cg(
   numIts = 0;  
   restart_eps_sq_used=res_eps_sq;
 
-  while( flag == -1 )
-  {
+  char zgemv_TRANS;
+  int zgemv_M, zgemv_N, zgemv_LDA;
+  _Complex double *zgemv_X = NULL, *zgemv_Y = NULL;
+  _Complex double zgemv_ALPHA, zgemv_BETA;
+  _Complex double* zgemv_A = evecs;
+  int zgemv_INCX = 1;
+  int zgemv_INCY = 1;
+
+  char zhbmv_UPLO = 'U';
+  int zhbmv_INCX = 1;
+  int zhbmv_INCY = 1;
+  int zhbmv_N, zhbmv_K, zhbmv_LDA;
+  _Complex double zhbmv_ALPHA, zhbmv_BETA;
+  _Complex double *zhbmv_A = NULL, *zhbmv_Y = NULL, *zhbmv_X = NULL;
+
+  while( flag == -1 ) {
     
-    if(nconv > 0)
-    {
+    if(nconv > 0) {
 
-
-      /* --------------------------------------------------------- */
-      /* Perform init-CG with evecs vectors                        */
-      /* xinit = xinit + evecs*Hinv*evec'*(b-Ax0) 		   */
-      /* --------------------------------------------------------- */
+      /************************************************************
+       * Perform init-CG with evecs vectors                       
+       *
+       * x <- x + V Lambda^-1 V^+ r
+       *
+       * r is 12Vh (C) = 12Vh (F)
+       * V is nconv x 12Vh (C) = 12V x nconv (F)
+       *
+       * (1) zgemv calculates
+       *   p = V^+ r which is [nconv x 12Vh (F)] x [12Vh (F)] = nconv (F)
+       *
+       * (2) zhbmv calculates
+       *   w = diag(Lambda^-1) x p with k=0 superdiagonals
+       *
+       * (3) zgemv calculates
+       *   r + V w which is [12Vh x nconv (F) ] x [nconv (F)] = 12Vh (F)
+       ************************************************************/
       wt1 = gettime();
 
-      /*r0=b-Ax0*/
-      f(ax,x); /*ax = A*x */
-      diff(r,b,ax,N);  /* r=b-A*x */
+      /* calculate initial residual * r0 = b - A x0 */
+      /* ax <- A * x */
+      f( ax, x); 
 
       if( projection_type == 0) {
 
-        /* x = x + evecs*inv(H)*evecs'*r */
-        for(int i=0; i < nconv; i++)
-        {
-           assign_complex_to_spinor(tmps1,&evecs[i*12*N],12*N);
-           initwork[i]= scalar_prod(tmps1,r,N,parallel);
-        }
+        /* r <- b - A * x */
+        diff( r, b, ax, N);
 
-        /* solve the linear system H y = c */
-        tmpsize=nconv*nconv;
-        _FT(zcopy) (&tmpsize,H,&ONE,Hinv,&ONE); /* copy H into Hinv */
-        /* SUBROUTINE ZGESV( N, NRHS, A, LDA, IPIV, B, LDB, INFO ) */
-        _FT(zgesv) (&nconv,&ONE,Hinv,&nconv,IPIV,initwork,&nconv,&info_lapack);
+      } else if( projection_type == 1) {
 
-        if(info_lapack != 0)
-        {
-           if(g_proc_id == g_stdio_proc) {
-              fprintf(stderr, "[arpack_cg] Error in ZGESV:, info =  %d\n",info_lapack); 
-              fflush(stderr);
-           }
-           exit(1);
-        }
+        /* r <- b - A * x */
+        diff( tmps2, b, ax, N);
 
-        /* x = x + evecs*inv(H)*evecs'*r */
-        for(i=0; i<nconv; i++)
-        {
-          assign_complex_to_spinor(tmps1,&evecs[i*12*N],12*N);
-          assign_add_mul(x,tmps1,initwork[i],N);
-        }
+        /* r <- F^+ tmps2 */
+        f_initial( r, tmps2);
+      }
 
-      } else if ( projection_type == 1 ) {
-        /* x = x + evecs*inv(H)*evecs'*r */
+      zgemv_TRANS = 'C';
+      zgemv_ALPHA = 1. + 0.*I;
+      zgemv_BETA  = 0. + 0.*I;
+      zgemv_M     = 12*N;
+      zgemv_N     = nconv;
+      zgemv_LDA   = zgemv_M;
+      zgemv_X     = r;
+      zgemv_Y     = zprojected_spinor;
 
-        /* tmps2 = Q^+ r */
-        f_initial(tmps2, r);
+      /* zprojected_spinor = V^+ r */
+      _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
 
-        for(int i=0; i < nconv; i++) {
-          /* tmps1 = v_i */
-          assign_complex_to_spinor(tmps1,&evecs[i*12*N],12*N);
+      /* global reduction */
+#ifdef TM_USE_MPI
+      memcpy(zprojected_spinor_weighted, zprojected_spinor, nconv*sizeof(_Complex double));
+      if ( MPI_Allreduce(zprojected_spinor_weighted, zprojected_spinor, 2*nconv, MPI_DOUBLE, MPI_SUM, g_cart_grid) != MPI_SUCCESS) {
+        fprintf(stderr,"[arpack_cg] error from MPI_Allreduce\n");
+        exit(5);
+      }
+      memset(zprojected_spinor_weighted, 0, nconv*sizeof(_Complex double));
+#endif
+      zhbmv_N     = nconv;
+      zhbmv_K     = 0;
+      zhbmv_ALPHA = 1. + 0.*I;
+      zhbmv_BETA  = 0. + 0.*I;
+      zhbmv_A     = zhevals_inverse;
+      zhbmv_LDA   = 1;
+      zhbmv_X     = zprojected_spinor;
+      zhbmv_Y     = zprojected_spinor_weighted;
 
-          /* initwork_i = v_i^+ Q^+ r / lambda_i^2 */
-          initwork[i]= scalar_prod(tmps1, tmps2, N, parallel) / ( H[i*nconv+i] * H[i*nconv+i] );
-        }
+      /* zprojected_spinor_weighted <- elementwise lambda^-1 x zprojected_spinor */
+      _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
 
-        memset(tmps2, 0, N*sizeof(spinor) );
+      if ( projection_type == 1 ) {
+        memcpy(zprojected_spinor, zprojected_spinor_weighted, nconv*sizeof(_Complex double) );
+
+        /* second multiplication due normalization of eigenvectors for projection type 1, W^+ W = diag( lambda ) */
+        _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
+      }
+
+      /* TEST */
+      /*
+      if ( g_cart_id == 0 ) {
         for(i=0; i<nconv; i++) {
-          assign_complex_to_spinor(tmps1, &evecs[i*12*N], 12*N);
-          assign_add_mul(tmps2, tmps1, initwork[i], N);
+          fprintf(stdout, "# [arpack_cg] %3d z <- %25.16e +1.i* %25.16e ; w <-  %25.16e +1.i* %25.16e\n", i, 
+              creal( zprojected_spinor[i] ), cimag( zprojected_spinor[i] ),
+              creal( zprojected_spinor_weighted[i] ), cimag( zprojected_spinor_weighted[i] ));
         }
+      }
+      */
 
-        /* apply final operator */
-        f_final(tmps1, tmps2);
+      zgemv_TRANS = 'N';
+      zgemv_ALPHA = 1. + 0.*I;
+      zgemv_BETA  = 0. + 0.*I;
+      zgemv_M     = 12*N;
+      zgemv_N     = nconv;
+      zgemv_LDA   = zgemv_M;
+      zgemv_X     = zprojected_spinor_weighted;
+      zgemv_Y     = (_Complex double*)tmps1;  /* IS THIS SAFE? */
+
+      /* t <- V zprojected_spinor_weighted  */
+      _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
+
+      if ( projection_type == 0 ) {
+        /* x <- x + tmps1 */
         assign_add_mul(x, tmps1, 1., N);
 
-      }  /* end of if projection type */
+      } else if ( projection_type == 1 ) {
+        /* tmps2 <- F tmps1 */
+        f_final( tmps2, tmps1);
+
+        /* x <- x + tmps2 */
+        assign_add_mul(x, tmps2, 1., N);
+      }
 
       /* compute elapsed time and add to accumulator */
 
       wt2 = gettime();
       wI = wI + wt2-wt1;
       
-    }/* if(nconv > 0) */
+    } /* if(nconv > 0) */
 
 
     /* which tolerance to use */
@@ -722,18 +709,20 @@ int arpack_cg(
   /* free memory if this was your last system to solve */
   if(ncurRHS == nrhs){
 #if ( (defined SSE) || (defined SSE2) || (defined SSE3)) 
-    free(_ax);  free(_r);  free(_tmps1); free(_tmps2);
+    free(_ax); free(_r); free(_tmps1); free(_tmps2);
 #else
-    free(ax); free(r); free(tmps1); free(tmps2);
+    free(ax);  free(r);  free(tmps1);  free(tmps2);
 #endif
-    free(evecs); free(evals); free(H); free(Hinv);
-    free(initwork); free(tmpv1); free(zheev_work);
-    free(hevals); free(zheev_rwork); free(IPIV);
+    free( evecs );
+    free( evals );
+    free( hevals );
+    free( zhevals_inverse );
+    free( zprojected_spinor );
+    free( zprojected_spinor_weighted );
   }
 
-
   return numIts;
-}
+}  /* end of arpack_cg */
  
 
 

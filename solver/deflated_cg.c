@@ -133,7 +133,7 @@ int exactdeflated_cg(
     if(_ax==NULL)
     {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for _ax inside deflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for _ax inside deflated_cg.\n");
        exit(1);
     }
     else
@@ -143,7 +143,7 @@ int exactdeflated_cg(
     if(_r==NULL)
     {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for _r inside deflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for _r inside deflated_cg.\n");
 
        exit(1);
     }
@@ -154,7 +154,7 @@ int exactdeflated_cg(
     if(_tmps1==NULL)
     {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for _tmps1 inside deflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for _tmps1 inside deflated_cg.\n");
        exit(1);
     }
     else
@@ -163,7 +163,7 @@ int exactdeflated_cg(
     _tmps2 = malloc((LDN+ALIGN_BASE)*sizeof(spinor));
     if(_tmps2==NULL) {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for _tmps2 inside deflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for _tmps2 inside deflated_cg.\n");
        exit(1);
     } else {
       tmps2  = (spinor *) ( ((unsigned long int)(_tmps2)+ALIGN_BASE)&~ALIGN_BASE);
@@ -176,7 +176,7 @@ int exactdeflated_cg(
     tmps2 = (spinor *) malloc(LDN*sizeof(spinor));
     
     if( (ax == NULL)  || (r==NULL) || (tmps1==NULL) || (tmps2==NULL) ) {
-       if(g_proc_id == g_stdio_proc) fprintf(stderr,"[exactdefled_cg] insufficient memory for ax,r,tmps1,tmps2 inside exactdeflated_cg.\n");
+       if(g_proc_id == g_stdio_proc) fprintf(stderr,"[exactdeflated_cg] insufficient memory for ax,r,tmps1,tmps2 inside exactdeflated_cg.\n");
        exit(1);
     }
 #endif
@@ -186,7 +186,7 @@ int exactdeflated_cg(
     if((evecs == NULL)  || (evals==NULL) || (tmpv1==NULL))
     {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for evecs and evals inside exactdeflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for evecs and evals inside exactdeflated_cg.\n");
        exit(1);
     }
 
@@ -198,7 +198,7 @@ int exactdeflated_cg(
 
     if((H==NULL) || (Hinv==NULL) || (initwork==NULL) || (IPIV==NULL) || (hevals==NULL)) {
        if(g_proc_id == g_stdio_proc)
-          fprintf(stderr,"[exactdefled_cg] insufficient memory for H, Hinv, initwork, IPIV, hevals inside exactdeflated_cg.\n");
+          fprintf(stderr,"[exactdeflated_cg] insufficient memory for H, Hinv, initwork, IPIV, hevals inside exactdeflated_cg.\n");
        exit(1);
     }
 
@@ -250,7 +250,7 @@ int exactdeflated_cg(
 
     et2=gettime();
     if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"[exactdefled_cg] time to compute H: %+e\n",et2-et1);
+      fprintf(stdout,"[exactdeflated_cg] time to compute H: %+e\n",et2-et1);
     }
 
   }  /* if(ncurRHS==0) */
@@ -268,7 +268,7 @@ int exactdeflated_cg(
   }
   
   if(g_proc_id == g_stdio_proc && g_debug_level > 0) {
-    fprintf(stdout, "# [exactdefled_cg] System %d, eps_sq %e, projection type %d\n",ncurRHS,eps_sq_used, projection_type); 
+    fprintf(stdout, "# [exactdeflated_cg] System %d, eps_sq %e, projection type %d\n",ncurRHS,eps_sq_used, projection_type); 
     fflush(stdout);
   } 
   
@@ -317,7 +317,7 @@ int exactdeflated_cg(
 
         if(info_lapack != 0) {
            if(g_proc_id == g_stdio_proc) {
-              fprintf(stderr, "[exactdefled_cg] Error in ZGESV:, info =  %d\n",info_lapack); 
+              fprintf(stderr, "[exactdeflated_cg] Error in ZGESV:, info =  %d\n",info_lapack); 
               fflush(stderr);
            }
            exit(1);
@@ -383,7 +383,7 @@ int exactdeflated_cg(
     {
        /* cg didn't converge */
        if(g_proc_id == g_stdio_proc) {
-         fprintf(stderr, "[exactdefled_cg] CG didn't converge within the maximum number of iterations in deflated_cg. Exiting...\n"); 
+         fprintf(stderr, "[exactdeflated_cg] CG didn't converge within the maximum number of iterations in deflated_cg. Exiting...\n"); 
          fflush(stderr);
          exit(1);
          
@@ -408,11 +408,11 @@ int exactdeflated_cg(
   normsq=square_norm(r,N,parallel);
   if(g_debug_level > 0 && g_proc_id == g_stdio_proc)
   {
-    fprintf(stdout, "# [exactdefled_cg] For this rhs:\n");
-    fprintf(stdout, "# [exactdefled_cg] Total initCG Wallclock : %+e\n", wI);
-    fprintf(stdout, "# [exactdefled_cg] Total cg Wallclock : %+e\n", wE);
-    fprintf(stdout, "# [exactdefled_cg] Iterations: %-d\n", numIts); 
-    fprintf(stdout, "# [exactdefled_cg] Actual Resid of LinSys  : %+e\n",normsq);
+    fprintf(stdout, "# [exactdeflated_cg] For this rhs:\n");
+    fprintf(stdout, "# [exactdeflated_cg] Total initCG Wallclock : %+e\n", wI);
+    fprintf(stdout, "# [exactdeflated_cg] Total cg Wallclock : %+e\n", wE);
+    fprintf(stdout, "# [exactdeflated_cg] Iterations: %-d\n", numIts); 
+    fprintf(stdout, "# [exactdeflated_cg] Actual Resid of LinSys  : %+e\n",normsq);
   }
 
   /* apply the adjoint operator again */

@@ -232,6 +232,7 @@ int init_operators() {
         (optr->deflator_params).eoprec = optr->even_odd_flag;
         (optr->deflator_params).type   = optr->type;
         (optr->deflator_params).init   = make_exactdeflator;
+        (optr->deflator_params).fini   = fini_exactdeflator;
       }
 
       if(optr->type == TMWILSON || optr->type == WILSON) {

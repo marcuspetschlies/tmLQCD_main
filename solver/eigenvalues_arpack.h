@@ -28,6 +28,7 @@ void evals_arpack(
   int nev, 
   int ncv, 
   int which,
+  char howmny,
   int use_acc,
   int cheb_k,
   double amin,

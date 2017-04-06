@@ -58,11 +58,18 @@ int exactdeflated_cg(
   static int ncurRHS=0;                  /* current number of the system being solved */                   
   static void *_ax, *_r, *_tmps1, *_tmps2;
   static spinor *ax, *r, *tmps1, *tmps2;
+#if 0
   static _Complex double *H,*Hinv,*initwork,*tmpv1;
   static double *hevals;
   static int *IPIV; 
-  int i,j,tmpsize;
+  int tmpsize;
   int ONE=1;
+#endif  /* of if 0 */
+  static _Complex double *zhevals_inverse;
+  static _Complex double *zprojected_spinor;
+  static _Complex double *zprojected_spinor_weighted;
+
+  int i,j;
   _Complex double c1, c2, c3;
   double d1,d2,d3;
   double et1,et2;  /* timing variables */
@@ -181,6 +188,7 @@ int exactdeflated_cg(
     }
 #endif
 
+#if 0
     tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
 
     if((evecs == NULL)  || (evals==NULL) || (tmpv1==NULL))
@@ -252,6 +260,15 @@ int exactdeflated_cg(
     if(g_proc_id == g_stdio_proc) {
       fprintf(stdout,"[exactdeflated_cg] time to compute H: %+e\n",et2-et1);
     }
+#endif  /* of if 0 */
+
+    zhevals_inverse   = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+    zprojected_spinor = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+    zprojected_spinor_weighted = (_Complex double *) malloc(nconv*sizeof(_Complex double));
+
+    for( i = 0; i < nconv; i++) {
+      zhevals_inverse[i] = 1. / evals[i];
+    }
 
   }  /* if(ncurRHS==0) */
     
@@ -278,7 +295,7 @@ int exactdeflated_cg(
   double wt1,wt2,wE,wI;
   double normsq,tol_sq;
   int flag,maxit_remain,numIts,its;
-  int info_lapack;
+  /* int info_lapack; */
 
   wE = 0.0; wI = 0.0;     /* Start accumulator timers */
   flag = -1;    	  /* System has not converged yet */
@@ -286,8 +303,23 @@ int exactdeflated_cg(
   numIts = 0;  
   restart_eps_sq_used=res_eps_sq;
 
+  char zgemv_TRANS;
+  int zgemv_M, zgemv_N, zgemv_LDA;
+  _Complex double *zgemv_X = NULL, *zgemv_Y = NULL;
+  _Complex double zgemv_ALPHA, zgemv_BETA;
+  _Complex double* zgemv_A = evecs;
+  int zgemv_INCX = 1;
+  int zgemv_INCY = 1;
+
+  char zhbmv_UPLO = 'U';
+  int zhbmv_INCX = 1;
+  int zhbmv_INCY = 1;
+  int zhbmv_N, zhbmv_K, zhbmv_LDA;
+  _Complex double zhbmv_ALPHA, zhbmv_BETA;
+  _Complex double *zhbmv_A = NULL, *zhbmv_Y = NULL, *zhbmv_X = NULL;
+
   while( flag == -1 ) {
-    
+#if 0
     if(nconv > 0) {
 
       /* ---------------------------------------------------------
@@ -361,7 +393,129 @@ int exactdeflated_cg(
       wI = wI + wt2-wt1;
       
     }  /* of if nconv > 0 */
+#endif  /* of if 0 */
 
+
+    if(nconv > 0) {
+
+      /************************************************************
+       * Perform init-CG with evecs vectors                       
+       *
+       * x <- x + V Lambda^-1 V^+ r
+       *
+       * r is 12Vh (C) = 12Vh (F)
+       * V is nconv x 12Vh (C) = 12V x nconv (F)
+       *
+       * (1) zgemv calculates
+       *   p = V^+ r which is [nconv x 12Vh (F)] x [12Vh (F)] = nconv (F)
+       *
+       * (2) zhbmv calculates
+       *   w = diag(Lambda^-1) x p with k=0 superdiagonals
+       *
+       * (3) zgemv calculates
+       *   r + V w which is [12Vh x nconv (F) ] x [nconv (F)] = 12Vh (F)
+       ************************************************************/
+      wt1 = gettime();
+
+      /* calculate initial residual * r0 = b - A x0 */
+      /* ax <- A * x */
+      f( ax, x); 
+
+      if( projection_type == 0) {
+
+        /* r <- b - A * x */
+        diff( r, b, ax, N);
+
+      } else if( projection_type == 1) {
+
+        /* r <- b - A * x */
+        diff( tmps2, b, ax, N);
+
+        /* r <- F^+ tmps2 */
+        f_initial( r, tmps2);
+      }
+
+      zgemv_TRANS = 'C';
+      zgemv_ALPHA = 1. + 0.*I;
+      zgemv_BETA  = 0. + 0.*I;
+      zgemv_M     = 12*N;
+      zgemv_N     = nconv;
+      zgemv_LDA   = zgemv_M;
+      zgemv_X     = r;
+      zgemv_Y     = zprojected_spinor;
+
+      /* zprojected_spinor = V^+ r */
+      _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
+
+      /* global reduction */
+#ifdef TM_USE_MPI
+      memcpy(zprojected_spinor_weighted, zprojected_spinor, nconv*sizeof(_Complex double));
+      if ( MPI_Allreduce(zprojected_spinor_weighted, zprojected_spinor, 2*nconv, MPI_DOUBLE, MPI_SUM, g_cart_grid) != MPI_SUCCESS) {
+        fprintf(stderr,"[arpack_cg] error from MPI_Allreduce\n");
+        exit(5);
+      }
+      memset(zprojected_spinor_weighted, 0, nconv*sizeof(_Complex double));
+#endif
+      zhbmv_N     = nconv;
+      zhbmv_K     = 0;
+      zhbmv_ALPHA = 1. + 0.*I;
+      zhbmv_BETA  = 0. + 0.*I;
+      zhbmv_A     = zhevals_inverse;
+      zhbmv_LDA   = 1;
+      zhbmv_X     = zprojected_spinor;
+      zhbmv_Y     = zprojected_spinor_weighted;
+
+      /* zprojected_spinor_weighted <- elementwise lambda^-1 x zprojected_spinor */
+      _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
+
+      if ( projection_type == 1 ) {
+        memcpy(zprojected_spinor, zprojected_spinor_weighted, nconv*sizeof(_Complex double) );
+
+        /* second multiplication due normalization of eigenvectors for projection type 1, W^+ W = diag( lambda ) */
+        _FT(zhbmv)(&zhbmv_UPLO, &zhbmv_N, &zhbmv_K, &zhbmv_ALPHA, zhbmv_A, &zhbmv_LDA, zhbmv_X, &zhbmv_INCX, &zhbmv_BETA, zhbmv_Y, &zhbmv_INCY, 1);
+      }
+
+      /* TEST */
+      /*
+      if ( g_cart_id == 0 ) {
+        for(i=0; i<nconv; i++) {
+          fprintf(stdout, "# [arpack_cg] %3d z <- %25.16e +1.i* %25.16e ; w <-  %25.16e +1.i* %25.16e\n", i, 
+              creal( zprojected_spinor[i] ), cimag( zprojected_spinor[i] ),
+              creal( zprojected_spinor_weighted[i] ), cimag( zprojected_spinor_weighted[i] ));
+        }
+      }
+      */
+
+      zgemv_TRANS = 'N';
+      zgemv_ALPHA = 1. + 0.*I;
+      zgemv_BETA  = 0. + 0.*I;
+      zgemv_M     = 12*N;
+      zgemv_N     = nconv;
+      zgemv_LDA   = zgemv_M;
+      zgemv_X     = zprojected_spinor_weighted;
+      zgemv_Y     = (_Complex double*)tmps1;  /* IS THIS SAFE? */
+
+      /* t <- V zprojected_spinor_weighted  */
+      _FT(zgemv)( &zgemv_TRANS, &zgemv_M, &zgemv_N, &zgemv_ALPHA, zgemv_A, &zgemv_LDA, zgemv_X, &zgemv_INCX, &zgemv_BETA, zgemv_Y, &zgemv_INCY, 1);
+
+      if ( projection_type == 0 ) {
+        /* x <- x + tmps1 */
+        assign_add_mul(x, tmps1, 1., N);
+
+      } else if ( projection_type == 1 ) {
+        /* tmps2 <- F tmps1 */
+        f_final( tmps2, tmps1);
+
+        /* x <- x + tmps2 */
+        assign_add_mul(x, tmps2, 1., N);
+      }
+
+      /* compute elapsed time and add to accumulator */
+
+      wt2 = gettime();
+      wI = wI + wt2-wt1;
+      
+    } /* if(nconv > 0) */
 
     /* which tolerance to use */
     if(eps_sq_used > restart_eps_sq_used) {
@@ -427,9 +581,18 @@ int exactdeflated_cg(
 #else
     free(ax); free(r); free(tmps1); free(tmps2);
 #endif
+
+#if 0
     free(H); free(Hinv);
     free(initwork); free(tmpv1);
-    free(hevals); free(IPIV);
+    free(hevals);
+    free(IPIV);
+#endif  /* of if 0 */
+    free( evecs );
+    free( evals );
+    free( zhevals_inverse );
+    free( zprojected_spinor );
+    free( zprojected_spinor_weighted );
   }  /* end of if ncurRHS == nrhs */
 
   return(numIts);

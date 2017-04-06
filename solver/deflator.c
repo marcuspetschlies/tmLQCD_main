@@ -58,18 +58,8 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   void *_ax,*_r,*_tmps1,*_tmps2;
 #endif
   spinor *ax,*r,*tmps1,*tmps2;
-  _Complex double *evecs,*evals,*H,*HU,*Hinv,*initwork;
-  /* _Complex double *tmpv1; */
-#if 0
-  _Complex double *zheev_work;
-  double *zheev_rwork;
-  int *IPIV; 
-  int tmpsize;
-  char cV='V',cN='N', cU='U';   
-  int ONE=1;
-  int zheev_lwork,zheev_info;
-  _Complex double tpone=1.0,tzero=0.0;
-#endif  /* of if 0 */
+  _Complex double *evecs = NULL, *evals = NULL;
+
   double *hevals;
   int info_arpack=0;
   int nconv=0; /* number of converged eigenvectors as returned by arpack */
@@ -242,12 +232,6 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 #endif
 
   deflator_params->prec  = 64;
-/* tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
-  if( tmpv1==NULL ) {
-    if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for tmpv1\n");
-    exit(1);
-  }
-*/
 
   if ( deflator_read_ev == 1) {
 
@@ -460,120 +444,6 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 
   deflator_params->nconv = nconv;
 
-#if 0
-  /* compute Ritz values and Ritz vectors if needed */
-  if( (nconv>0) && (comp_evecs !=0)) {
-
-    H           = (_Complex double *)malloc(nconv*nconv*sizeof(_Complex double)); 
-    HU          = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-    Hinv        = (_Complex double *) malloc(nconv*nconv*sizeof(_Complex double)); 
-    initwork    = (_Complex double *) malloc(nconv*sizeof(_Complex double)); 
-    IPIV        = (int *) malloc(nconv*sizeof(int));
-    zheev_lwork = 3*nconv;
-    zheev_work  = (_Complex double *) malloc(zheev_lwork*sizeof(_Complex double));
-    zheev_rwork = (double *) malloc(3*nconv*sizeof(double));
-    hevals      = (double *) malloc(nconv*sizeof(double));
-
-    if((H==NULL) || (HU==NULL) || (Hinv==NULL) || (initwork==NULL) || (IPIV==NULL) || (zheev_lwork==NULL) || (zheev_rwork==NULL) || (hevals==NULL)) {
-       if(g_proc_id == g_stdio_proc) {
-          fprintf(stderr,"[make_exactdeflator] insufficient memory for H, HU, Hinv, initwork, IPIV, zheev_lwork, zheev_rwork, hevals inside deflator_cg.\n");
-       }
-       exit(1);
-    }
-    et1=gettime();
-    /* compute the elements of the hermitian matrix H 
-       leading dimension is nconv and active dimension is nconv */
-  
-    for(i=0; i<nconv; i++) {
-      assign_complex_to_spinor(r,&evecs[i*12*N],12*N);
-      f(ax,r);
-      c1 = scalar_prod(r,ax,N,parallel);
-      H[i+nconv*i] = creal(c1);  /* diagonal should be real */
-      evals[i] = creal(c1)+ 0.*I;
-      for(j=i+1; j<nconv; j++) {
-        assign_complex_to_spinor(r,&evecs[j*12*N],12*N);
-        c1 = scalar_prod(r,ax,N,parallel);
-        H[j+nconv*i] = c1;
-        H[i+nconv*j] = conj(c1); /* enforce hermiticity */
-      }
-    }  /* end of loop on nconv */
-
-    et2=gettime();
-    if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"# [make_exactdeflator] time to compute H: %+e\n",et2-et1);
-    }
-
-    et1=gettime();
-    /* copy H into HU */
-    tmpsize=nconv*nconv;
-    _FT(zcopy)(&tmpsize,H,&ONE,HU,&ONE);
-    if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"# [make_exactdeflator] done zcopy\n");
-      fflush(stdout);
-    }
-
-    /* compute eigenvalues and eigenvectors of HU*/
-    /* SUBROUTINE ZHEEV( JOBZ, UPLO, N, A, LDA, W, WORK, LWORK, RWORK,INFO ) */
-    _FT(zheev)(&cV,&cU,&nconv,HU,&nconv,hevals,zheev_work,&zheev_lwork,zheev_rwork,&zheev_info,1,1);
-
-    if(zheev_info != 0) {
-      if(g_proc_id == g_stdio_proc) {
-        fprintf(stderr,"[make_exactdeflator] Error in ZHEEV:, info =  %d\n",zheev_info); 
-        fflush(stderr);
-      }
-      exit(1);
-    } else {
-      if(g_proc_id == g_stdio_proc) {
-        fprintf(stdout,"# [make_exactdeflator] done zheev\n");
-        fflush(stdout);
-      }
-    }
-
-    /* If you want to replace the Schur (orthonormal) basis by eigen basis
-       use something like this. It is better to use the schur basis because
-       they are better conditioned. Use this part only to get the eigenvalues
-       and their resduals for the operator (D^\daggerD)
-       esize=(ncv-nconv)*12*N;
-       Zrestart_X(evecs,12*N,HU,12*N,nconv,nconv,&evecs[nconv*N],esize); */
-
-    /* compute residuals and print out results */
-
-    if(g_proc_id == g_stdio_proc) {
-      fprintf(stdout,"# [make_exactdeflator] Ritz values of A and their residulas (||A*x-lambda*x||)/||x||\n"); 
-      fprintf(stdout,"# [make_exactdeflator] =============================================================\n");
-      fflush(stdout);
-    }
-
-    for(i=0; i<nconv; i++) {
-      tmpsize=12*N;
-      _FT(zgemv)(&cN,&tmpsize,&nconv,&tpone,evecs,&tmpsize, &HU[i*nconv],&ONE,&tzero,tmpv1,&ONE,1);
-      assign_complex_to_spinor(r,tmpv1,12*N);
-      d1=square_norm(r,N,parallel);
-      f(ax,r);
-      mul_r(tmps1,hevals[i],r,N);
-      diff(tmps2,ax,tmps1,N);
-      d2= square_norm(tmps2,N,parallel);
-      d3= sqrt(d2/d1);
- 
-      if(g_proc_id == g_stdio_proc) {
-        fprintf(stdout,"# [make_exactdeflator] Eval %6d %25.16e %25.16e %25.16e\n", i, hevals[i], d3, creal(evals[i]) );
-        fflush(stdout);
-      }
-    } 
-
-    free(H);
-    free(HU);
-    free(Hinv);
-    free(initwork);
-    free(IPIV);
-    free(zheev_work);
-    free(hevals);
-    free(zheev_rwork);
-  } else {
-    memset(evals, 0, nconv*sizeof(double));
-  }  /* if( (nconv_arpack>0) && (comp_evecs !=0)) */
-#endif  /* of if 0 */
-
   if( nconv > 0 ) {
 
     if(g_proc_id == g_stdio_proc) {
@@ -679,7 +549,6 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   free(tmps1);
   free(tmps2);
 #endif
-  /* free(tmpv1); */
 
   return(0);
 }  /* end of make_exactdeflator */

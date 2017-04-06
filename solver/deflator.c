@@ -58,17 +58,23 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   void *_ax,*_r,*_tmps1,*_tmps2;
 #endif
   spinor *ax,*r,*tmps1,*tmps2;
-  _Complex double *evecs,*evals,*H,*HU,*Hinv,*initwork,*tmpv1;
+  _Complex double *evecs,*evals,*H,*HU,*Hinv,*initwork;
+  /* _Complex double *tmpv1; */
+#if 0
   _Complex double *zheev_work;
-  double *hevals,*zheev_rwork;
+  double *zheev_rwork;
   int *IPIV; 
-  int info_arpack=0;
-  int nconv=0; /* number of converged eigenvectors as returned by arpack */
-  int i,j,tmpsize;
+  int tmpsize;
   char cV='V',cN='N', cU='U';   
   int ONE=1;
   int zheev_lwork,zheev_info;
-  _Complex double c1, tpone=1.0,tzero=0.0;
+  _Complex double tpone=1.0,tzero=0.0;
+#endif  /* of if 0 */
+  double *hevals;
+  int info_arpack=0;
+  int nconv=0; /* number of converged eigenvectors as returned by arpack */
+  int i,j;
+  _Complex double c1;
   double d1,d2,d3;
   double et1,et2;  /* timing variables */
   char evecs_filename[500];
@@ -156,8 +162,17 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   /* (IN) f32(s,r) computes s=A*r, i.e. matrix-vector multiply in single precision */
   matrix_mult32 f32 = deflator_params->f32;
 
+  /* (IN) final operator application during projection of type 1 */
+  matrix_mult f_final = deflator_params->f_final;
+
+  /* (IN) initial operator application during projection of type 1 */
+  matrix_mult f_initial = deflator_params->f_initial;
+
   /* set nconv to 0 to signify, that init has been called */
   deflator_params->nconv = 0;
+
+  /* how to project with approximate eigenvectors */
+  int projection_type = deflator_params->projection_type;
 
   if(g_cart_id == 1) {
     fprintf(stdout, "# [make_exactdeflator] eo prec = %d\n", deflator_params->eoprec);
@@ -227,12 +242,12 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 #endif
 
   deflator_params->prec  = 64;
-  tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
+/* tmpv1 = (_Complex double *) malloc(12*N*sizeof(_Complex double));
   if( tmpv1==NULL ) {
     if(g_proc_id == g_stdio_proc) fprintf(stderr,"[make_exactdeflator] insufficient memory for tmpv1\n");
     exit(1);
   }
-
+*/
 
   if ( deflator_read_ev == 1) {
 
@@ -445,6 +460,7 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
 
   deflator_params->nconv = nconv;
 
+#if 0
   /* compute Ritz values and Ritz vectors if needed */
   if( (nconv>0) && (comp_evecs !=0)) {
 
@@ -556,6 +572,96 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   } else {
     memset(evals, 0, nconv*sizeof(double));
   }  /* if( (nconv_arpack>0) && (comp_evecs !=0)) */
+#endif  /* of if 0 */
+
+  if( nconv > 0 ) {
+
+    if(g_proc_id == g_stdio_proc) {
+      fprintf(stdout,"# [make_exactdeflator] Eigenvalues of A and their residulas (||A*x-lambda*x||/||x||\n"); 
+      fprintf(stdout,"# [make_exactdeflator] =============================================================\n");
+      fflush(stdout);
+    }
+    hevals = (double *) malloc(nconv*sizeof(double));
+    if ( hevals == NULL ) {
+      fprintf(stderr, "# [make_exactdeflator] Error from malloc\n");
+      return(4);
+    }
+
+    for ( i=0; i < nconv; i++ ) {
+
+      if ( projection_type == 0) {
+        /* Op = F F^+, F = C^+ , Op = C^+ C^- */
+        /* r <- evec no. i (with possible alignment for sse) */
+        assign_complex_to_spinor( r, &evecs[i*12*N], 12*N);
+      } else if ( projection_type == 1 ) {
+        /* Op = F F^+, F = C^- , Op = C^- C^+ */
+        /* tmps1 <- evec no. i */
+        assign_complex_to_spinor(tmps1, &evecs[i*12*N], 12*N);
+
+        /* r <- F x */
+        f_final(r, tmps1);
+      }
+
+      /* calculate d1 <- | r |^2 */
+      d1 = square_norm( r, N, parallel);
+         
+      /* TEST */
+      /* if ( g_cart_id == 0 ) fprintf(stdout, "# [arpack_cg] |evec(%2d)| = %e\n", i, sqrt(d1)); */
+
+      /* apply the operator 
+      *   ax <- Op r */
+      f( ax, r);
+
+      /* determine the eigenvalue */
+      /* (1) from the square norm of ax */
+      /* hevals[i] = sqrt( square_norm( ax, N, parallel) ); */
+
+      /* 
+       * (2) from the scalar product (r, ax) / (r, r) = lambda (r, r) / (r, r) */
+      c1 = scalar_prod( r, ax, N, parallel);
+      hevals[i] = creal( c1 ) / d1;
+      evals[i] = creal(c1)+ 0.*I;
+
+
+      /* tmps1 <- lambda_i x r */
+      mul_r( tmps1, hevals[i], r, N);
+
+      /* tmps2 <- ax - tmps1 = Op r - lambda_i r */
+      diff( tmps2, ax, tmps1, N);
+
+      /* d2 <- | tmps2 |^2  */
+      d2= square_norm( tmps2, N, parallel);
+
+      /* d3 <- | Op evec_i - lambda_i evec_i | / lambda_i */
+      d3= sqrt(d2/d1);
+
+      if(g_proc_id == g_stdio_proc) {
+        fprintf(stdout,"# [make_exactdeflator] Eval[%06d]: %22.15E rnorm: %22.15E\n", i, hevals[i], d3); fflush(stdout);
+      }
+
+    }   /* end of loop on eigenpairs */
+
+    /* check residual */
+    for(i=0; i<nconv; i++) {
+      assign_complex_to_spinor(r, &evecs[i*12*N], 12*N);
+      d1=square_norm(r,N,parallel);
+      f(ax,r);
+      mul_r(tmps1,hevals[i],r,N);
+      diff(tmps2,ax,tmps1,N);
+      d2= square_norm(tmps2,N,parallel);
+      d3= sqrt(d2/d1);
+
+      if(g_proc_id == g_stdio_proc) {
+        fprintf(stdout,"# [make_exactdeflator] Eval %6d %25.16e %25.16e %25.16e\n", i, hevals[i], d3, creal(evals[i]) );
+        fflush(stdout);
+      }
+
+
+    }  /* end of loop on eigenpairs */
+    free( hevals );
+  } else {
+    memset(evals, 0, nconv*sizeof(double));
+  }  /* end of if( nconv > 0 ) */
 
   et2=gettime();
   if(g_proc_id == g_stdio_proc) {
@@ -573,7 +679,7 @@ int make_exactdeflator( deflator_params_t *deflator_params ) {
   free(tmps1);
   free(tmps2);
 #endif
-  free(tmpv1);
+  /* free(tmpv1); */
 
   return(0);
 }  /* end of make_exactdeflator */

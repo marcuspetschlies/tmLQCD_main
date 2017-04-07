@@ -81,6 +81,7 @@ int arpack_cg(
   double d1,d2,d3;
   double et1,et2;  /* timing variables */
   char evecs_filename[500];
+  char howmny = 'P';
   FILE *evecs_fs=NULL;
   size_t evecs_count;
   WRITER *evecs_writer=NULL;
@@ -297,7 +298,7 @@ int arpack_cg(
       info_arpack = 0;
     } else {
       et1=gettime();
-      evals_arpack(N,nev,ncv,kind,acc,cheb_k,emin,emax,evals,evecs,arpack_eig_tol,arpack_eig_maxiter,f,&info_arpack,&nconv,arpack_logfile);
+      evals_arpack(N,nev,ncv,kind,howmny,acc,cheb_k,emin,emax,evals,evecs,arpack_eig_tol,arpack_eig_maxiter,f,&info_arpack,&nconv,arpack_logfile);
       et2=gettime();
 
       if(info_arpack != 0){ /* arpack didn't converge */

@@ -45,6 +45,8 @@ typedef struct deflator_params_t {
   matrix_mult f_final;    /* (IN) final operator application during projection of type 1 */
   matrix_mult f_initial;  /* (IN) initial operator application during projection of type 1 */
 
+  int symmetric_operator;
+
   int projection_type;
 
   void *evecs;
@@ -65,6 +67,9 @@ typedef struct deflator_params_t {
                                      3 eigenvalues of largest absolute value*/
    int    comp_evecs;    /* 0 don't compute the resiudals of the eigenvalues
                                      1 compute the residulas of the eigenvalues*/
+
+   char evecs_howmny;
+
    double eig_tol;       /* tolerance for computing eigenvalues with arpack */
    int    eig_maxiter;   /* maximum number of iterations to be used by arpack*/
    char   logfile[500];  /* file name for the logfile used by arpack*/
@@ -99,5 +104,6 @@ typedef struct deflator_params_t {
 } deflator_params_t;
 
 int make_exactdeflator( deflator_params_t *deflator_params);
+int fini_exactdeflator( deflator_params_t *deflator_params );
 
 #endif

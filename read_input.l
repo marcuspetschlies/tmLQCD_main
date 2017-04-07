@@ -103,7 +103,7 @@ static inline void rmQuotes(char *str){
   float cs;
   int reread = 0;
   char name[100], fname[200];
-  char * type;
+  char * type, cname;
 
   int verbose = 0;
   int myverbose = 0;
@@ -640,6 +640,11 @@ static inline void rmQuotes(char *str){
     (optr->deflator_params).evals_kind  = a;
     if(myverbose) printf("  evals_kind set to %d line %d operator %d\n", a, line_of_file, current_operator);
   }
+  {SPC}*EvecsHowmny{EQL}{NAME} {
+    sscanf(yytext, " %[a-zA-Z] = %c", name, &cname);
+    (optr->deflator_params).evecs_howmny  = cname;
+    if(myverbose) printf("  evecs_howmny set to %c line %d operator %d\n", cname, line_of_file, current_operator);
+  }
   {SPC}*EvecsMaxiter{EQL}{DIGIT}+ {
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
     (optr->deflator_params).eig_maxiter = a;
@@ -694,6 +699,10 @@ static inline void rmQuotes(char *str){
     sscanf(yytext, " %[a-zA-Z] = %d", name, &a);
     (optr->deflator_params).projection_type = a;
     if(myverbose) printf("  projection_type set to %d line %d operator %d\n", a, line_of_file, current_operator);
+  }
+  {SPC}*EvecsSymmetricOperator{EQL}no {
+    (optr->deflator_params).symmetric_operator = 0;
+    if(myverbose) printf("  EvecsSymmetricOperator set to NO line %d operator %d\n",  line_of_file, current_operator);
   }
   {SPC}*EvecsFile{EQL}{FILENAME}+ {
     sscanf(yytext, " %[a-zA-Z] = %s", name, fname);

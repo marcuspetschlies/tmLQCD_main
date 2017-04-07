@@ -33,6 +33,7 @@ void evals_arpack(
   int nev, 
   int ncv, 
   int which,
+  char howmny,
   int use_acc,
   int cheb_k,
   double amin,
@@ -396,12 +397,12 @@ void evals_arpack(
 
         //compute eigenvectors 
 #ifndef TM_USE_MPI
-        _AFT(zneupd) (&rvec,"P", select,evals,v,&N,&sigma, 
+        _AFT(zneupd) (&rvec,&howmny, select,evals,v,&N,&sigma, 
                      workev,"I",&N,which_evals,&nev,&tol,resid,&ncv, 
                      v,&N,iparam,ipntr,workd,workl,&lworkl, 
                      rwork,info,1,1,2);
 #else
-        _AFT(pzneupd) (&mpi_comm_f,&rvec,"P", select,evals, v,&N,&sigma, 
+        _AFT(pzneupd) (&mpi_comm_f,&rvec, &howmny, select,evals, v,&N,&sigma, 
                        workev,"I",&N,which_evals,&nev,&tol, resid,&ncv, 
                        v,&N,iparam,ipntr,workd,workl,&lworkl, 
                        rwork,info,1,1,2);

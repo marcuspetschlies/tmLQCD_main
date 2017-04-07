@@ -171,6 +171,7 @@ int add_operator(const int type) {
   (optr->deflator_params).nev             = 0;
   (optr->deflator_params).ncv             = 0;
   (optr->deflator_params).evals_kind      = 0;
+  (optr->deflator_params).evecs_howmny    = 'P';
   (optr->deflator_params).comp_evecs      = 0;
   (optr->deflator_params).eig_tol         = 0.;
   (optr->deflator_params).eig_maxiter     = 0;
@@ -182,6 +183,8 @@ int add_operator(const int type) {
   (optr->deflator_params).read_ev         = 0;
   (optr->deflator_params).evecs_writeprec = 64;
   (optr->deflator_params).init            = NULL;
+  (optr->deflator_params).fini            = NULL;
+  (optr->deflator_params).symmetric_operator = 1;
   strcpy( (optr->deflator_params).type_name,       "NA");
   strcpy((optr->deflator_params).logfile,          "arpack_log" ); 
   strcpy((optr->deflator_params).evecs_filename,   "eigenvectors");
@@ -232,6 +235,7 @@ int init_operators() {
         (optr->deflator_params).eoprec = optr->even_odd_flag;
         (optr->deflator_params).type   = optr->type;
         (optr->deflator_params).init   = make_exactdeflator;
+        (optr->deflator_params).fini   = fini_exactdeflator;
       }
 
       if(optr->type == TMWILSON || optr->type == WILSON) {
@@ -260,11 +264,17 @@ int init_operators() {
           optr->applyMm = &Mtm_minus_psi;
 
           if(optr->solver == EXACTDEFLATEDCG) {
-            /* the the operators in the deflator */
-            (optr->deflator_params).f         = &Qtm_pm_psi;
-            (optr->deflator_params).f32       = &Qtm_pm_psi_32;
-            (optr->deflator_params).f_final   = &Qtm_plus_psi;
-            (optr->deflator_params).f_initial = &Qtm_minus_psi;
+            /* the operators in the deflator */
+            if( (optr->deflator_params).symmetric_operator ) {
+              (optr->deflator_params).f         = &Qtm_pm_psi;
+              (optr->deflator_params).f32       = &Qtm_pm_psi_32;
+              (optr->deflator_params).f_final   = &Qtm_plus_psi;
+              (optr->deflator_params).f_initial = &Qtm_minus_psi;
+            } else {
+              (optr->deflator_params).f         = &Qtm_plus_psi;
+              (optr->deflator_params).f_final   = NULL;
+              (optr->deflator_params).f_initial = NULL;
+            }
           }
 
         }
@@ -276,11 +286,18 @@ int init_operators() {
           optr->applyMm = &M_minus_psi;
  
           if(optr->solver == EXACTDEFLATEDCG) {
-            /* the the operators in the deflator */
-            (optr->deflator_params).f         = &Q_pm_psi;
-            (optr->deflator_params).f32       = &Q_pm_psi_32;
-            (optr->deflator_params).f_final   = &Q_plus_psi;
-            (optr->deflator_params).f_initial = &Q_minus_psi;
+            /* the operators in the deflator */
+            if( (optr->deflator_params).symmetric_operator ) {
+              (optr->deflator_params).f         = &Q_pm_psi;
+              (optr->deflator_params).f32       = &Q_pm_psi_32;
+              (optr->deflator_params).f_final   = &Q_plus_psi;
+              (optr->deflator_params).f_initial = &Q_minus_psi;
+            } else {
+              (optr->deflator_params).f         = &D_psi;
+              (optr->deflator_params).f32       = NULL;
+              (optr->deflator_params).f_final   = NULL;
+              (optr->deflator_params).f_initial = NULL;
+            }
           }
 
         }
@@ -324,11 +341,18 @@ int init_operators() {
 
 
           if(optr->solver == EXACTDEFLATEDCG) {
-            /* the the operators in the deflator */
-            (optr->deflator_params).f         = &Qsw_pm_psi;
-            (optr->deflator_params).f32       = &Qsw_pm_psi_32;
-            (optr->deflator_params).f_final   = &Qsw_plus_psi;
-            (optr->deflator_params).f_initial = &Qsw_minus_psi;
+            /* the operators in the deflator */
+            if( (optr->deflator_params).symmetric_operator ) {
+              (optr->deflator_params).f         = &Qsw_pm_psi;
+              (optr->deflator_params).f32       = &Qsw_pm_psi_32;
+              (optr->deflator_params).f_final   = &Qsw_plus_psi;
+              (optr->deflator_params).f_initial = &Qsw_minus_psi;
+            } else {
+              (optr->deflator_params).f         = &Qsw_plus_psi;
+              (optr->deflator_params).f32       = NULL;
+              (optr->deflator_params).f_final   = NULL;
+              (optr->deflator_params).f_initial = NULL;
+            }
           }
 
         }
@@ -340,11 +364,18 @@ int init_operators() {
           optr->applyMm = &Msw_full_minus_psi;
 
           if(optr->solver == EXACTDEFLATEDCG) {
-            /* the the operators in the deflator */
-            (optr->deflator_params).f         = Qsw_full_pm_psi;
-            (optr->deflator_params).f32       = NULL;
-            (optr->deflator_params).f_final   = &Qsw_full_plus_psi;
-            (optr->deflator_params).f_initial = &Qsw_full_minus_psi;
+            /* the operators in the deflator */
+            if( (optr->deflator_params).symmetric_operator ) { 
+              (optr->deflator_params).f         = Qsw_full_pm_psi;
+              (optr->deflator_params).f32       = NULL;
+              (optr->deflator_params).f_final   = &Qsw_full_plus_psi;
+              (optr->deflator_params).f_initial = &Qsw_full_minus_psi;
+            } else {
+              (optr->deflator_params).f         = &D_psi;
+              (optr->deflator_params).f32       = NULL;
+              (optr->deflator_params).f_final   = NULL;
+              (optr->deflator_params).f_initial = NULL;
+            }
           }
 
         }

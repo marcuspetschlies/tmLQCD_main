@@ -193,25 +193,36 @@ int tmLQCD_invert_init(int argc, char *argv[], const int _verbose) {
 int tmLQCD_read_gauge(const int nconfig) {
   char conf_filename[500];
   if(!tmLQCD_invert_initialised) {
-    fprintf(stderr, "tmLQCD_read_gauge: tmLQCD_inver_init must be called first. Aborting...\n");
+    fprintf(stderr, "[tmLQCD_read_gauge] tmLQCD_read_gauge: tmLQCD_inver_init must be called first. Aborting...\n");
     return(-1);
   }
 
-  sprintf(conf_filename, "%s.%.4d", gauge_input_filename, nconfig);
-  int j=0;
-  if (g_cart_id == 0) {
-    printf("#\n# Trying to read gauge field from file %s.\n",
-	   conf_filename);
-    fflush(stdout);
-  }
-  if( (j = read_gauge_field(conf_filename,g_gauge_field)) !=0) {
-    fprintf(stderr, "tmLQCD_read_gauge: Error %d while reading gauge field from %s\n ...\n", j, conf_filename);
-    return(-1);
-  }
-  if (g_cart_id == 0) {
-    printf("# Finished reading gauge field.\n");
-    fflush(stdout);
-  }
+  if ( strcmp( gauge_input_filename, "unit_gauge_field") == 0 ) {
+    if (g_cart_id == 0) {
+      printf("# [tmLQCD_read_gauge] \n# [tmLQCD_read_gauge] Initializing unit gauge field\n");
+      fflush(stdout);
+    }
+    unit_g_gauge_field();
+    if (g_cart_id == 0) {
+      printf("# [tmLQCD_read_gauge] Finished reading gauge field.\n");
+      fflush(stdout);
+    }
+  } else {
+    sprintf(conf_filename, "%s.%.4d", gauge_input_filename, nconfig);
+    int j=0;
+    if (g_cart_id == 0) {
+      printf("# [tmLQCD_read_gauge]\n# [tmLQCD_read_gauge] Trying to read gauge field from file %s.\n", conf_filename);
+      fflush(stdout);
+    }
+    if( (j = read_gauge_field(conf_filename,g_gauge_field)) !=0) {
+      fprintf(stderr, "[tmLQCD_read_gauge] tmLQCD_read_gauge: Error %d while reading gauge field from %s\n ...\n", j, conf_filename);
+      return(-1);
+    }
+    if (g_cart_id == 0) {
+      printf("# [tmLQCD_read_gauge] Finished reading gauge field.\n");
+      fflush(stdout);
+    }
+  }  /* end of if unit_gauge_field */
 #ifdef TM_USE_MPI
   xchange_gauge(g_gauge_field);
 #endif
@@ -219,7 +230,7 @@ int tmLQCD_read_gauge(const int nconfig) {
 
   double plaquette = measure_plaquette( (const su3** const) g_gauge_field)/(6.*VOLUME*g_nproc);
   if (g_cart_id == 0) {
-    printf("# The computed plaquette value is %.16e.\n", plaquette);
+    printf("# [tmLQCD_read_gauge] The computed plaquette value is %.16e.\n", plaquette);
   }
   return(0);
 }  /* end of tmLQCD_read_gauge */

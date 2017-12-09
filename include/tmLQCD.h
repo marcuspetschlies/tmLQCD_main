@@ -70,6 +70,8 @@ extern "C"
   int tmLQCD_fini_deflator(const int op_id);
   int tmLQCD_set_deflator_fields(const int op_id1, const int op_id2);
 
+  int tmLQCD_xchange_gauge(void);
+
 #ifdef __cplusplus
 }
 #endif

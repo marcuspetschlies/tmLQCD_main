@@ -289,21 +289,33 @@ int main(int argc, char *argv[])
 #endif
 
   for (j = 0; j < Nmeas; j++) {
-    sprintf(conf_filename, "%s.%.4d", gauge_input_filename, nstore);
-    if (g_cart_id == 0) {
-      printf("#\n# Trying to read gauge field from file %s in %s precision.\n",
-            conf_filename, (gauge_precision_read_flag == 32 ? "single" : "double"));
-      fflush(stdout);
-    }
-    if( (i = read_gauge_field(conf_filename,g_gauge_field)) !=0) {
-      fprintf(stderr, "Error %d while reading gauge field from %s\n Aborting...\n", i, conf_filename);
-      exit(-2);
-    }
 
+    if ( strcmp (gauge_input_filename, "identity") == 0 ) {
+      if (g_cart_id == 0) {
+        printf("#\n# Trying to set unit gauge field.\n");
+        fflush(stdout);
+      }
+      unit_g_gauge_field();
+      if (g_cart_id == 0) {
+        printf("# Finished setting gauge field.\n");
+        fflush(stdout);
+      }
+    } else {
+      sprintf(conf_filename, "%s.%.4d", gauge_input_filename, nstore);
+      if (g_cart_id == 0) {
+        printf("#\n# Trying to read gauge field from file %s in %s precision.\n",
+              conf_filename, (gauge_precision_read_flag == 32 ? "single" : "double"));
+        fflush(stdout);
+      }
+      if( (i = read_gauge_field(conf_filename,g_gauge_field)) !=0) {
+        fprintf(stderr, "Error %d while reading gauge field from %s\n Aborting...\n", i, conf_filename);
+        exit(-2);
+      }
 
-    if (g_cart_id == 0) {
-      printf("# Finished reading gauge field.\n");
-      fflush(stdout);
+      if (g_cart_id == 0) {
+        printf("# Finished reading gauge field.\n");
+        fflush(stdout);
+      }
     }
 #ifdef TM_USE_MPI
     xchange_gauge(g_gauge_field);
